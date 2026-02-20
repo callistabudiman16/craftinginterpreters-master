@@ -327,7 +327,13 @@ class Interpreter implements Expr.Visitor<Object>,
         checkNumberOperands(expr.operator, left, right);
 //< check-star-operand
         return (double)left * (double)right;
+
+      case COMMA:
+        // left already evaluated
+        return right;
     }
+
+    
 
     // Unreachable.
     return null;
