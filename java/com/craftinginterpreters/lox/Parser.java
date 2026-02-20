@@ -51,9 +51,7 @@ class Parser {
 /* Parsing Expressions expression < Statements and State expression
     return equality();
 */
-//> Statements and State expression
-    return assignment();
-//< Statements and State expression
+    return comma();
   }
 //< expression
 //> Statements and State declaration
@@ -315,6 +313,20 @@ class Parser {
 
     return expr;
   }
+
+  private Expr comma() {
+    Expr expr = assignment();
+
+    while (match(COMMA)) {
+      Token operator = previous();
+      Expr right = assignment();
+      expr = new Expr.Binary(expr, operator, right);
+    }
+
+    return expr;
+  }
+
+
 //< Statements and State parse-assignment
 //> Control Flow or
   private Expr or() {
