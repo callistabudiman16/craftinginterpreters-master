@@ -313,10 +313,11 @@ class Interpreter implements Expr.Visitor<Object>,
           throw new RuntimeError(expr.operator, "Operands must be numbers or strings.");
 //< binary-plus
       case SLASH:
-//> check-slash-operand
         checkNumberOperands(expr.operator, left, right);
-//< check-slash-operand
-        return (double)left / (double)right;
+        if ((double) right == 0.0) {
+          throw new RuntimeError(expr.operator, "Division by zero.");
+        }
+          return (double) left / (double) right;
       case STAR:
 //> check-star-operand
         checkNumberOperands(expr.operator, left, right);
