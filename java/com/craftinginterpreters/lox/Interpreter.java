@@ -74,7 +74,7 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< Statements and State interpret
 //> evaluate
-  private Object evaluate(Expr expr) {
+  public Object evaluate(Expr expr) {
     return expr.accept(this);
   }
 //< evaluate
@@ -301,27 +301,23 @@ class Interpreter implements Expr.Visitor<Object>,
         return (double)left - (double)right;
 //> binary-plus
       case PLUS:
-        if (left instanceof Double && right instanceof Double) {
-          return (double)left + (double)right;
-        } // [plus]
+      // number + number
+          if (left instanceof Double && right instanceof Double) {
+            return (double)left + (double)right;
+          }
+      
+          if (left instanceof String || right instanceof String) {
+            return stringify(left) + stringify(right);
+          }
 
-        if (left instanceof String && right instanceof String) {
-          return (String)left + (String)right;
-        }
-
-/* Evaluating Expressions binary-plus < Evaluating Expressions string-wrong-type
-        break;
-*/
-//> string-wrong-type
-        throw new RuntimeError(expr.operator,
-            "Operands must be two numbers or two strings.");
-//< string-wrong-type
+          throw new RuntimeError(expr.operator, "Operands must be numbers or strings.");
 //< binary-plus
       case SLASH:
-//> check-slash-operand
         checkNumberOperands(expr.operator, left, right);
-//< check-slash-operand
-        return (double)left / (double)right;
+        if ((double) right == 0.0) {
+          throw new RuntimeError(expr.operator, "Division by zero.");
+        }
+          return (double) left / (double) right;
       case STAR:
 //> check-star-operand
         checkNumberOperands(expr.operator, left, right);
@@ -525,7 +521,7 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< is-equal
 //> stringify
-  private String stringify(Object object) {
+  public String stringify(Object object) {
     if (object == null) return "nil";
 
     if (object instanceof Double) {
@@ -539,4 +535,20 @@ class Interpreter implements Expr.Visitor<Object>,
     return object.toString();
   }
 //< stringify
+
+  Object evaluateRepl(Expr expr) {
+  return evaluate(expr);
+}
+
+String stringifyRepl(Object value) {
+  return stringify(value);
+}
+
+public Object interpretExpression(Expr expr) {
+  return evaluate(expr);
+}
+
+public String formatValue(Object value) {
+  return stringify(value);
+}
 }

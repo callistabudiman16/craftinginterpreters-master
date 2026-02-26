@@ -463,8 +463,50 @@ class Parser {
     return expr;
   }
 //< Functions call
+
+private void parseRightOperandFor(TokenType op) {
+  switch (op) {
+
+    case PLUS:
+    case MINUS:
+      factor();
+      return;
+
+    case STAR:
+    case SLASH:
+      unary();
+      return;
+
+    case GREATER:
+    case GREATER_EQUAL:
+    case LESS:
+    case LESS_EQUAL:
+      term();
+      return;
+
+    case EQUAL_EQUAL:
+    case BANG_EQUAL:
+      comparison();
+      return;
+
+    default:
+      unary(); // safe fallback
+  }
+}
+
 //> primary
   private Expr primary() {
+
+        if (match(PLUS, STAR, SLASH,
+            GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
+            EQUAL_EQUAL, BANG_EQUAL)) {
+    Token op = previous();
+    error(op, "Missing left-hand operand.");
+
+    parseRightOperandFor(op.type);
+
+    return new Expr.Literal(null);
+  }
     if (match(FALSE)) return new Expr.Literal(false);
     if (match(TRUE)) return new Expr.Literal(true);
     if (match(NIL)) return new Expr.Literal(null);
@@ -499,6 +541,8 @@ class Parser {
       return new Expr.Grouping(expr);
     }
 //> primary-error
+
+
 
     throw error(peek(), "Expect expression.");
 //< primary-error
@@ -577,4 +621,21 @@ class Parser {
     }
   }
 //< synchronize
+
+Expr parseExpression() {
+  try {
+    Expr expr = expression();
+
+    // If there's anything left (like a semicolon or extra tokens),
+    // it's not a "bare expression" REPL input.
+    if (!isAtEnd()) {
+      throw error(peek(), "Expect end of expression.");
+    }
+
+    return expr;
+  } catch (ParseError error) {
+    return null;
+  }
+}
+
 }

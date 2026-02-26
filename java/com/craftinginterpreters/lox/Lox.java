@@ -53,7 +53,7 @@ public class Lox {
       System.out.print("> ");
       String line = reader.readLine();
       if (line == null) break;
-      run(line);
+      runPromptLine(line);
 //> reset-had-error
       hadError = false;
 //< reset-had-error
@@ -104,6 +104,51 @@ public class Lox {
     interpreter.interpret(statements);
 //< Statements and State interpret-statements
   }
+
+  private static void runPromptLine(String source) {
+  Scanner scanner = new Scanner(source);
+  List<Token> tokens = scanner.scanTokens();
+
+  TokenType first = tokens.get(0).type;
+  boolean startsLikeStatement =
+      first == TokenType.PRINT ||
+      first == TokenType.VAR ||
+      first == TokenType.LEFT_BRACE ||
+      first == TokenType.IF ||
+      first == TokenType.WHILE ||
+      first == TokenType.FOR ||
+      first == TokenType.FUN ||
+      first == TokenType.CLASS ||
+      first == TokenType.RETURN;
+
+  if (!startsLikeStatement) {
+    Parser exprParser = new Parser(tokens);
+    Expr expr = exprParser.parseExpression();
+
+    if (!hadError && expr != null) {
+      Resolver resolver = new Resolver(interpreter);
+      resolver.resolve(expr);
+      if (hadError) return;
+
+      Object value = interpreter.interpretExpression(expr);
+      System.out.println(interpreter.formatValue(value));
+      return;
+    }
+
+    hadError = false;
+  }
+
+
+  Parser parser = new Parser(tokens);
+  List<Stmt> statements = parser.parse();
+  if (hadError) return;
+
+  Resolver resolver = new Resolver(interpreter);
+  resolver.resolve(statements);
+  if (hadError) return;
+
+  interpreter.interpret(statements);
+}
 //< run
 //> lox-error
   static void error(int line, String message) {

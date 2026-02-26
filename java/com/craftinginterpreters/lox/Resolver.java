@@ -55,6 +55,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
       resolve(statement);
     }
   }
+  
 //< resolve-statements
 //> visit-block-stmt
   @Override
@@ -335,7 +336,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   }
 //< resolve-stmt
 //> resolve-expr
-  private void resolve(Expr expr) {
+  public void resolve(Expr expr) {
     expr.accept(this);
   }
 //< resolve-expr
