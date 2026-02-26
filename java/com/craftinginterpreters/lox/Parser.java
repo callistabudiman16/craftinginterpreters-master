@@ -625,9 +625,6 @@ private void parseRightOperandFor(TokenType op) {
 Expr parseExpression() {
   try {
     Expr expr = expression();
-
-    // If we are not at end, it's not a pure expression.
-    // Just return null so REPL falls back to statement mode.
     if (!isAtEnd()) return null;
 
     return expr;
