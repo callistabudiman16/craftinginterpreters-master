@@ -626,11 +626,9 @@ Expr parseExpression() {
   try {
     Expr expr = expression();
 
-    // If there's anything left (like a semicolon or extra tokens),
-    // it's not a "bare expression" REPL input.
-    if (!isAtEnd()) {
-      throw error(peek(), "Expect end of expression.");
-    }
+    // If we are not at end, it's not a pure expression.
+    // Just return null so REPL falls back to statement mode.
+    if (!isAtEnd()) return null;
 
     return expr;
   } catch (ParseError error) {
