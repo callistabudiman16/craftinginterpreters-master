@@ -543,4 +543,12 @@ class Interpreter implements Expr.Visitor<Object>,
 String stringifyRepl(Object value) {
   return stringify(value);
 }
+
+public Object interpretExpression(Expr expr) {
+  return evaluate(expr);
+}
+
+public String formatValue(Object value) {
+  return stringify(value);
+}
 }
