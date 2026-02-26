@@ -74,7 +74,7 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< Statements and State interpret
 //> evaluate
-  private Object evaluate(Expr expr) {
+  public Object evaluate(Expr expr) {
     return expr.accept(this);
   }
 //< evaluate
@@ -521,7 +521,7 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< is-equal
 //> stringify
-  private String stringify(Object object) {
+  public String stringify(Object object) {
     if (object == null) return "nil";
 
     if (object instanceof Double) {
@@ -535,4 +535,12 @@ class Interpreter implements Expr.Visitor<Object>,
     return object.toString();
   }
 //< stringify
+
+  Object evaluateRepl(Expr expr) {
+  return evaluate(expr);
+}
+
+String stringifyRepl(Object value) {
+  return stringify(value);
+}
 }

@@ -621,4 +621,21 @@ private void parseRightOperandFor(TokenType op) {
     }
   }
 //< synchronize
+
+Expr parseExpression() {
+  try {
+    Expr expr = expression();
+
+    // If there's anything left (like a semicolon or extra tokens),
+    // it's not a "bare expression" REPL input.
+    if (!isAtEnd()) {
+      throw error(peek(), "Expect end of expression.");
+    }
+
+    return expr;
+  } catch (ParseError error) {
+    return null;
+  }
+}
+
 }
