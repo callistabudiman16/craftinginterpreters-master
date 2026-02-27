@@ -12,6 +12,7 @@ abstract class Stmt {
     R visitIfStmt(If stmt);
     R visitPrintStmt(Print stmt);
     R visitReturnStmt(Return stmt);
+    R visitBreakStmt(Break stmt);
     R visitVarStmt(Var stmt);
     R visitWhileStmt(While stmt);
   }
@@ -131,6 +132,20 @@ abstract class Stmt {
     final Expr value;
   }
 //< stmt-return
+//> stmt-break
+  static class Break extends Stmt {
+    Break(Token keyword) {
+      this.keyword = keyword;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitBreakStmt(this);
+    }
+
+    final Token keyword;
+  }
+//< stmt-break
 //> stmt-var
   static class Var extends Stmt {
     Var(Token name, Expr initializer) {

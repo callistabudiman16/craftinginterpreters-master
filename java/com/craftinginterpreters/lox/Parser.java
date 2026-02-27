@@ -1,6 +1,7 @@
 //> Parsing Expressions parser
 package com.craftinginterpreters.lox;
 
+
 //> Statements and State parser-imports
 import java.util.ArrayList;
 //< Statements and State parser-imports
@@ -120,8 +121,17 @@ class Parser {
     if (match(LEFT_BRACE)) return new Stmt.Block(block());
 //< parse-block
 
+    //9.1
+    if (match(BREAK)) return breakStatement();
+
     return expressionStatement();
   }
+
+  private Stmt breakStatement() {
+  Token keyword = previous();
+  consume(SEMICOLON, "Expect ';' after 'break'.");
+  return new Stmt.Break(keyword);
+}
 //< Statements and State parse-statement
 //> Control Flow for-statement
   private Stmt forStatement() {

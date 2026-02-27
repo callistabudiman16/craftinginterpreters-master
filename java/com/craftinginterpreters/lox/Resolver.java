@@ -18,6 +18,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   Resolver(Interpreter interpreter) {
     this.interpreter = interpreter;
   }
+
+  private int loopDepth = 0;
 //> function-type
   private enum FunctionType {
     NONE,
@@ -207,9 +209,20 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //< visit-var-stmt
 //> visit-while-stmt
   @Override
-  public Void visitWhileStmt(Stmt.While stmt) {
-    resolve(stmt.condition);
-    resolve(stmt.body);
+    public Void visitWhileStmt(Stmt.While stmt) {
+      loopDepth++;
+      resolve(stmt.condition);
+      resolve(stmt.body);
+      loopDepth--;
+    return null;
+  }
+
+  //visitBreakstmt
+  @Override
+  public Void visitBreakStmt(Stmt.Break stmt) {
+      if (loopDepth == 0) {
+      Lox.error(stmt.keyword, "Can't use 'break' outside of a loop.");
+  }
     return null;
   }
 //< visit-while-stmt

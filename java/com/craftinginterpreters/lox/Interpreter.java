@@ -219,6 +219,10 @@ class Interpreter implements Expr.Visitor<Object>,
 
     throw new Return(value);
   }
+
+  private static class Break extends RuntimeException {
+  Break() { super(null, null, false, false); }
+  }
 //< Functions visit-return
 //> Statements and State visit-var
   @Override
@@ -231,13 +235,22 @@ class Interpreter implements Expr.Visitor<Object>,
     environment.define(stmt.name.lexeme, value);
     return null;
   }
+
+  @Override
+public Void visitBreakStmt(Stmt.Break stmt) {
+  throw new Break();
+}
 //< Statements and State visit-var
 //> Control Flow visit-while
   @Override
   public Void visitWhileStmt(Stmt.While stmt) {
-    while (isTruthy(evaluate(stmt.condition))) {
-      execute(stmt.body);
-    }
+    try {
+      while (isTruthy(evaluate(stmt.condition))) {
+        execute(stmt.body);
+      }
+    } catch (Break b) {
+    
+  }
     return null;
   }
 //< Control Flow visit-while
