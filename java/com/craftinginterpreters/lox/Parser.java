@@ -62,15 +62,21 @@ class Parser {
       if (match(CLASS)) return classDeclaration();
 //< Classes match-class
 //> Functions match-fun
-      if (match(FUN)) return function("function");
-//< Functions match-fun
-      if (match(VAR)) return varDeclaration();
+      if (check(FUN) && checkNext(IDENTIFIER)) {
+        advance(); // consume FUN
+        return function("function");
+      }
 
+      if (match(VAR)) return varDeclaration();
       return statement();
     } catch (ParseError error) {
       synchronize();
       return null;
     }
+  }
+  private boolean checkNext(TokenType type) {
+    if (isAtEnd()) return false;
+    return tokens.get(current + 1).type == type;
   }
 //< Statements and State declaration
 //> Classes parse-class-declaration
@@ -336,6 +342,27 @@ class Parser {
     return expr;
   }
 
+  private Expr functionExpression() {
+      consume(LEFT_PAREN, "Expect '(' after 'fun'.");
+      List<Token> parameters = new ArrayList<>();
+
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+    
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+      consume(LEFT_BRACE, "Expect '{' before function body.");
+      List<Stmt> body = block(); 
+  
+      return new Expr.Function(parameters, body);
+
+  }
+
 
 //< Statements and State parse-assignment
 //> Control Flow or
@@ -524,6 +551,8 @@ private void parseRightOperandFor(TokenType op) {
     if (match(NUMBER, STRING)) {
       return new Expr.Literal(previous().literal);
     }
+
+    if (match(FUN)) return functionExpression();
 //> Inheritance parse-super
 
     if (match(SUPER)) {

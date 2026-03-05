@@ -4,7 +4,9 @@ package com.craftinginterpreters.lox;
 import java.util.List;
 
 class LoxFunction implements LoxCallable {
-  private final Stmt.Function declaration;
+  private final Token name;              // may be null
+  private final List<Token> params;
+  private final List<Stmt> body;
 //> closure-field
   private final Environment closure;
   
@@ -18,15 +20,23 @@ class LoxFunction implements LoxCallable {
 //> Classes is-initializer-field
   private final boolean isInitializer;
 
-  LoxFunction(Stmt.Function declaration, Environment closure,
-              boolean isInitializer) {
+  LoxFunction(Stmt.Function declaration, Environment closure, boolean isInitializer) {
+    this.name = declaration.name; 
+    this.params = declaration.params;
+    this.body = declaration.body;
+    this.closure = closure;
     this.isInitializer = isInitializer;
+  }
+
+  LoxFunction(Expr.Function expr, Environment closure, boolean isInitializer) {
+    this.name = null;
+    this.params = expr.params;
+    this.body = expr.body;
+    this.closure = closure;
+    this.isInitializer = isInitializer;
+  }
 //< Classes is-initializer-field
 //> closure-constructor
-    this.closure = closure;
-//< closure-constructor
-    this.declaration = declaration;
-  }
 //> Classes bind-instance
   LoxFunction bind(LoxInstance instance) {
     Environment environment = new Environment(closure);
@@ -35,57 +45,50 @@ class LoxFunction implements LoxCallable {
     return new LoxFunction(declaration, environment);
 */
 //> lox-function-bind-with-initializer
-    return new LoxFunction(declaration, environment,
-                           isInitializer);
+    return new LoxFunction(
+            new Stmt.Function(name, params, body),
+            environment,
+            isInitializer);
 //< lox-function-bind-with-initializer
   }
 //< Classes bind-instance
 //> function-to-string
   @Override
   public String toString() {
-    return "<fn " + declaration.name.lexeme + ">";
+    if (name == null) return "<fn>";
+    return "<fn " + name.lexeme + ">";
   }
 //< function-to-string
 //> function-arity
   @Override
   public int arity() {
-    return declaration.params.size();
-  }
+    return params.size();
+}
 //< function-arity
 //> function-call
   @Override
   public Object call(Interpreter interpreter,
                      List<Object> arguments) {
+  
 /* Functions function-call < Functions call-closure
     Environment environment = new Environment(interpreter.globals);
 */
 //> call-closure
     Environment environment = new Environment(closure);
 //< call-closure
-    for (int i = 0; i < declaration.params.size(); i++) {
-      environment.define(declaration.params.get(i).lexeme,
-          arguments.get(i));
-    }
+    for (int i = 0; i < params.size(); i++) {
+  environment.define(params.get(i).lexeme, arguments.get(i));
+}
 
-/* Functions function-call < Functions catch-return
-    interpreter.executeBlock(declaration.body, environment);
-*/
-//> catch-return
     try {
-      interpreter.executeBlock(declaration.body, environment);
+      interpreter.executeBlock(body, environment);
     } catch (Return returnValue) {
-//> Classes early-return-this
       if (isInitializer) return closure.getAt(0, "this");
-
-//< Classes early-return-this
       return returnValue.value;
     }
-//< catch-return
-//> Classes return-this
 
     if (isInitializer) return closure.getAt(0, "this");
-//< Classes return-this
     return null;
+
   }
-//< function-call
 }

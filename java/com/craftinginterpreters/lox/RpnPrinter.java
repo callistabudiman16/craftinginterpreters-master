@@ -84,6 +84,11 @@ public class RpnPrinter implements Expr.Visitor<String> {
     return "super " + expr.method.lexeme;
   }
 
+  @Override
+  public String visitFunctionExpr(Expr.Function expr) {
+    return "fun";
+  }
+
   public static void main(String[] args) {
 
     Expr expression =

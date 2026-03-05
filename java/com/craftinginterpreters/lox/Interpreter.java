@@ -102,6 +102,12 @@ class Interpreter implements Expr.Visitor<Object>,
       this.environment = previous;
     }
   }
+
+  @Override
+  public Object visitFunctionExpr(Expr.Function expr) {
+    return new LoxFunction(expr, environment, false);
+  }
+
 //< Statements and State execute-block
 //> Statements and State visit-block
   @Override
