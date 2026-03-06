@@ -5,6 +5,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 class Environment {
+
+  private static final Object UNINITIALIZED = new Object();
+
 //> enclosing-field
   final Environment enclosing;
 //< enclosing-field
@@ -20,18 +23,23 @@ class Environment {
 //< environment-constructors
 //> environment-get
 
-  Object get(Token name) {
-    if (values.containsKey(name.lexeme)) {
-      return values.get(name.lexeme);
+Object get(Token name) {
+  if (values.containsKey(name.lexeme)) {
+    Object value = values.get(name.lexeme);
+
+    if (value == UNINITIALIZED) {
+      throw new RuntimeError(name,
+          "Variable '" + name.lexeme + "' has not been initialized.");
     }
-//> environment-get-enclosing
 
-    if (enclosing != null) return enclosing.get(name);
-//< environment-get-enclosing
-
-    throw new RuntimeError(name,
-        "Undefined variable '" + name.lexeme + "'.");
+    return value;
   }
+
+  if (enclosing != null) return enclosing.get(name);
+
+  throw new RuntimeError(name,
+      "Undefined variable '" + name.lexeme + "'.");
+}
 
 //< environment-get
 //> environment-assign
@@ -53,9 +61,13 @@ class Environment {
   }
 //< environment-assign
 //> environment-define
-  void define(String name, Object value) {
+void define(String name, Object value) {
+  if (value == null) {
+    values.put(name, UNINITIALIZED);
+  } else {
     values.put(name, value);
   }
+}
 //< environment-define
 //> Resolving and Binding ancestor
   Environment ancestor(int distance) {

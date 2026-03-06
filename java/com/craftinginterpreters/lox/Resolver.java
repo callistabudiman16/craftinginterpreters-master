@@ -9,7 +9,7 @@ import java.util.Stack;
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   private final Interpreter interpreter;
 //> scopes-field
-  private final Stack<Map<String, Boolean>> scopes = new Stack<>();
+  private final Stack<Map<String, VarState>> scopes = new Stack<>();
 //< scopes-field
 //> function-type-field
   private FunctionType currentFunction = FunctionType.NONE;
@@ -18,6 +18,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   Resolver(Interpreter interpreter) {
     this.interpreter = interpreter;
   }
+
+  private int loopDepth = 0;
 //> function-type
   private enum FunctionType {
     NONE,
@@ -47,6 +49,27 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   }
 
   private ClassType currentClass = ClassType.NONE;
+
+
+  private static class VarState {
+    final Token name;
+    boolean defined;
+    boolean used;
+    
+    VarState(Token name, boolean defined, boolean used) {
+      this.name = name;
+      this.defined = defined;
+      this.used = used;
+    }
+
+    VarState(boolean defined, boolean used) {
+      this.name = null;
+      this.defined = defined;
+      this.used = used;
+  }
+
+}
+
 
 //< Classes class-type
 //> resolve-statements
@@ -97,14 +120,14 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     if (stmt.superclass != null) {
       beginScope();
-      scopes.peek().put("super", true);
+      scopes.peek().put("super", new VarState( true, true));
     }
 //< Inheritance begin-super-scope
 //> resolve-methods
 
 //> resolver-begin-this-scope
     beginScope();
-    scopes.peek().put("this", true);
+    scopes.peek().put("this", new VarState(true, true));
 
 //< resolver-begin-this-scope
     for (Stmt.Function method : stmt.methods) {
@@ -207,9 +230,20 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //< visit-var-stmt
 //> visit-while-stmt
   @Override
-  public Void visitWhileStmt(Stmt.While stmt) {
-    resolve(stmt.condition);
-    resolve(stmt.body);
+    public Void visitWhileStmt(Stmt.While stmt) {
+      loopDepth++;
+      resolve(stmt.condition);
+      resolve(stmt.body);
+      loopDepth--;
+    return null;
+  }
+
+  //visitBreakstmt
+  @Override
+  public Void visitBreakStmt(Stmt.Break stmt) {
+      if (loopDepth == 0) {
+      Lox.error(stmt.keyword, "Can't use 'break' outside of a loop.");
+  }
     return null;
   }
 //< visit-while-stmt
@@ -320,13 +354,30 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //> visit-variable-expr
   @Override
   public Void visitVariableExpr(Expr.Variable expr) {
-    if (!scopes.isEmpty() &&
-        scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
-      Lox.error(expr.name,
-          "Can't read local variable in its own initializer.");
+    if (!scopes.isEmpty()) {
+      VarState state = scopes.peek().get(expr.name.lexeme);
+      if (state != null && !state.defined) {
+        Lox.error(expr.name,
+            "Can't read local variable in its own initializer.");
+    }
+    
+    resolveLocal(expr, expr.name);
+
+    for (int i = scopes.size() - 1; i >= 0; i--) {
+      VarState s = scopes.get(i).get(expr.name.lexeme);
+      if (s != null) { s.used = true; break; }
     }
 
+    return null;
+
+}
+
     resolveLocal(expr, expr.name);
+    for (int i = scopes.size() - 1; i >= 0; i--) {
+      VarState s = scopes.get(i).get(expr.name.lexeme);
+      if (s != null) { s.used = true; break; }
+    }
+
     return null;
   }
 //< visit-variable-expr
@@ -365,19 +416,28 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //< resolve-function
 //> begin-scope
   private void beginScope() {
-    scopes.push(new HashMap<String, Boolean>());
+    scopes.push(new HashMap<String, VarState>());
   }
 //< begin-scope
 //> end-scope
   private void endScope() {
-    scopes.pop();
+     Map<String, VarState> scope = scopes.pop();
+       for (VarState state : scope.values()) {
+    
+      if (state.name.lexeme.equals("this")) continue;
+      if (state.name.lexeme.equals("super")) continue;
+
+      if (state.defined && !state.used) {
+        Lox.error(state.name, "Local variable '" + state.name.lexeme + "' is never used.");
+      }
+    }
   }
 //< end-scope
 //> declare
   private void declare(Token name) {
     if (scopes.isEmpty()) return;
 
-    Map<String, Boolean> scope = scopes.peek();
+    Map<String, VarState> scope = scopes.peek();
 //> duplicate-variable
     if (scope.containsKey(name.lexeme)) {
       Lox.error(name,
@@ -385,13 +445,15 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
 //< duplicate-variable
-    scope.put(name.lexeme, false);
+    scope.put(name.lexeme, new VarState(name, false, false));
   }
 //< declare
 //> define
   private void define(Token name) {
-    if (scopes.isEmpty()) return;
-    scopes.peek().put(name.lexeme, true);
+      if (scopes.isEmpty()) return;
+
+    VarState state = scopes.peek().get(name.lexeme);
+    if (state != null) state.defined = true;
   }
 //< define
 //> resolve-local
@@ -404,4 +466,21 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
   }
 //< resolve-local
+  @Override
+  public Void visitFunctionExpr(Expr.Function expr) {
+    FunctionType enclosingFunction = currentFunction;
+    currentFunction = FunctionType.FUNCTION;
+
+    beginScope();
+    for (Token param : expr.params) {
+      declare(param);
+      define(param);
+    }
+    resolve(expr.body);
+    endScope();
+
+    currentFunction = enclosingFunction;
+    return null;
+  }
+
 }
