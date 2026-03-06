@@ -29,7 +29,7 @@ class Interpreter implements Expr.Visitor<Object>,
   private Environment environment = globals;
 //< Functions global-environment
 //> Resolving and Binding locals-field
-  private final Map<Expr, Integer> locals = new HashMap<>();
+  private final Map<Expr, Local> locals = new HashMap<>();
 //< Resolving and Binding locals-field
 //> Statements and State environment-field
 
@@ -50,6 +50,19 @@ class Interpreter implements Expr.Visitor<Object>,
       public String toString() { return "<native fn>"; }
     });
   }
+
+
+  private static class Local {
+    final int depth;
+    final int slot;
+
+    Local(int depth, int slot) {
+        this.depth = depth;
+        this.slot = slot;
+    }
+
+
+}
   
 //< Functions interpreter-constructor
 /* Evaluating Expressions interpret < Statements and State interpret
@@ -84,8 +97,8 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< Statements and State execute
 //> Resolving and Binding resolve
-  void resolve(Expr expr, int depth) {
-    locals.put(expr, depth);
+  void resolve(Expr expr, int depth, int slot) {
+    locals.put(expr, new Local(depth, slot));
   }
 //< Resolving and Binding resolve
 //> Statements and State execute-block
@@ -268,16 +281,15 @@ public Void visitBreakStmt(Stmt.Break stmt) {
     environment.assign(expr.name, value);
 */
 //> Resolving and Binding resolved-assign
-
-    Integer distance = locals.get(expr);
-    if (distance != null) {
-      environment.assignAt(distance, expr.name, value);
+    Local local = locals.get(expr);
+    if (local != null) {
+      environment.assignAt(local.depth, local.slot, value);
     } else {
       globals.assign(expr.name, value);
-    }
+  }
 
-//< Resolving and Binding resolved-assign
-    return value;
+  return value;
+    
   }
 //< Statements and State visit-assign
 //> visit-binary
@@ -439,13 +451,14 @@ public Void visitBreakStmt(Stmt.Break stmt) {
 //> Inheritance interpreter-visit-super
   @Override
   public Object visitSuperExpr(Expr.Super expr) {
-    int distance = locals.get(expr);
+    Local local = locals.get(expr);
+    
     LoxClass superclass = (LoxClass)environment.getAt(
-        distance, "super");
+        local.depth, local.slot);
 //> super-find-this
 
     LoxInstance object = (LoxInstance)environment.getAt(
-        distance - 1, "this");
+        local.depth - 1, 0);
 //< super-find-this
 //> super-find-method
 
@@ -501,12 +514,11 @@ public Void visitBreakStmt(Stmt.Break stmt) {
   }
 //> Resolving and Binding look-up-variable
   private Object lookUpVariable(Token name, Expr expr) {
-    Integer distance = locals.get(expr);
-    if (distance != null) {
-      return environment.getAt(distance, name.lexeme);
-    } else {
-      return globals.get(name);
-    }
+    Local local = locals.get(expr);
+    if (local != null) {
+      return environment.getAt(local.depth, local.slot);
+  }
+    return globals.get(name); // globals still by name
   }
 //< Resolving and Binding look-up-variable
 //< Statements and State visit-variable

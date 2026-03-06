@@ -1,7 +1,10 @@
 //> Statements and State environment-class
 package com.craftinginterpreters.lox;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 class Environment {
@@ -12,6 +15,8 @@ class Environment {
   final Environment enclosing;
 //< enclosing-field
   private final Map<String, Object> values = new HashMap<>();
+
+  private final List<Object> slots = new ArrayList<>();
 //> environment-constructors
   Environment() {
     enclosing = null;
@@ -41,6 +46,15 @@ Object get(Token name) {
       "Undefined variable '" + name.lexeme + "'.");
 }
 
+
+Object getAt(int distance, int slot) {
+  return ancestor(distance).slots.get(slot);
+}
+
+void assignAt(int distance, int slot, Object value) {
+  ancestor(distance).slots.set(slot, value);
+}
+
 //< environment-get
 //> environment-assign
   void assign(Token name, Object value) {
@@ -62,10 +76,10 @@ Object get(Token name) {
 //< environment-assign
 //> environment-define
 void define(String name, Object value) {
-  if (value == null) {
-    values.put(name, UNINITIALIZED);
+  if (enclosing == null) {
+    values.put(name, value);          // global
   } else {
-    values.put(name, value);
+    slots.add(value);  
   }
 }
 //< environment-define

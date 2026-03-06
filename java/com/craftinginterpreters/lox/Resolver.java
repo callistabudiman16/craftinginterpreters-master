@@ -10,11 +10,13 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   private final Interpreter interpreter;
 //> scopes-field
   private final Stack<Map<String, VarState>> scopes = new Stack<>();
+  private final Map<Expr, Local> locals = new HashMap<>();
 //< scopes-field
 //> function-type-field
   private FunctionType currentFunction = FunctionType.NONE;
 //< function-type-field
-
+  private final Stack<Integer> nextSlot = new Stack<>();
+  
   Resolver(Interpreter interpreter) {
     this.interpreter = interpreter;
   }
@@ -55,20 +57,29 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     final Token name;
     boolean defined;
     boolean used;
-    
-    VarState(Token name, boolean defined, boolean used) {
-      this.name = name;
-      this.defined = defined;
-      this.used = used;
-    }
+    final int slot; 
 
-    VarState(boolean defined, boolean used) {
-      this.name = null;
-      this.defined = defined;
-      this.used = used;
+    VarState(Token name, int slot) {
+    this.name = name;
+    this.slot = slot;
+    this.defined = false;
+    this.used = false;
   }
 
 }
+
+  private static class Local {
+  final int depth;
+  final int slot;
+  Local(int depth, int slot) {
+    this.depth = depth;
+    this.slot = slot;
+  }
+
+
+}
+
+
 
 
 //< Classes class-type
@@ -120,14 +131,14 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     if (stmt.superclass != null) {
       beginScope();
-      scopes.peek().put("super", new VarState( true, true));
+      //scopes.peek().put("super", new VarState(name, true, true));
     }
 //< Inheritance begin-super-scope
 //> resolve-methods
 
 //> resolver-begin-this-scope
     beginScope();
-    scopes.peek().put("this", new VarState(true, true));
+    //scopes.peek().put("this", new VarState(true, true));
 
 //< resolver-begin-this-scope
     for (Stmt.Function method : stmt.methods) {
@@ -390,6 +401,10 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
   public void resolve(Expr expr) {
     expr.accept(this);
   }
+
+  void resolve(Expr expr, int depth, int slot) {
+    locals.put(expr, new Local(depth, slot));
+}
 //< resolve-expr
 //> resolve-function
 /* Resolving and Binding resolve-function < Resolving and Binding set-current-function
@@ -416,21 +431,14 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //< resolve-function
 //> begin-scope
   private void beginScope() {
-    scopes.push(new HashMap<String, VarState>());
+      scopes.push(new HashMap<>());
+      nextSlot.push(0);
   }
 //< begin-scope
 //> end-scope
   private void endScope() {
-     Map<String, VarState> scope = scopes.pop();
-       for (VarState state : scope.values()) {
-    
-      if (state.name.lexeme.equals("this")) continue;
-      if (state.name.lexeme.equals("super")) continue;
-
-      if (state.defined && !state.used) {
-        Lox.error(state.name, "Local variable '" + state.name.lexeme + "' is never used.");
-      }
-    }
+    scopes.pop();
+    nextSlot.pop();
   }
 //< end-scope
 //> declare
@@ -444,8 +452,10 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
           "Already a variable with this name in this scope.");
     }
 
-//< duplicate-variable
-    scope.put(name.lexeme, new VarState(name, false, false));
+    int slot = nextSlot.pop();
+    nextSlot.push(slot + 1);
+
+    scope.put(name.lexeme, new VarState(name, slot));
   }
 //< declare
 //> define
@@ -459,11 +469,14 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //> resolve-local
   private void resolveLocal(Expr expr, Token name) {
     for (int i = scopes.size() - 1; i >= 0; i--) {
-      if (scopes.get(i).containsKey(name.lexeme)) {
-        interpreter.resolve(expr, scopes.size() - 1 - i);
-        return;
-      }
+    VarState state = scopes.get(i).get(name.lexeme);
+    if (state != null) {
+      int depth = scopes.size() - 1 - i;
+      interpreter.resolve(expr, depth, state.slot);
+      return;
     }
+
+  }
   }
 //< resolve-local
   @Override
