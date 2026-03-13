@@ -102,35 +102,48 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 //< visit-block-stmt
 //> Classes resolver-visit-class
   @Override
-  public Void visitClassStmt(Stmt.Class stmt) {
-//> set-current-class
-    ClassType enclosingClass = currentClass;
-    currentClass = ClassType.CLASS;
+    public Void visitClassStmt(Stmt.Class stmt) {
+      ClassType enclosingClass = currentClass;
+      currentClass = ClassType.CLASS;
 
-    declare(stmt.name);
-    define(stmt.name);
+      declare(stmt.name);
+      define(stmt.name);
 
+      if (stmt.superclass != null) {
+        currentClass = ClassType.SUBCLASS;   // ← THIS MUST BE HERE
+        resolve(stmt.superclass);
+      }
 
-    beginScope();
-    
-    Token thisToken = new Token(TokenType.THIS, "this", null, stmt.name.line);
-    declare(thisToken);
-    define(thisToken);
+  // create scope for super
+      if (stmt.superclass != null) {
+        beginScope();
+        Token fakeSuper =
+            new Token(TokenType.IDENTIFIER, "super", null, stmt.name.line);
+        declare(fakeSuper);
+        define(fakeSuper);
+      }
 
-    for (Stmt.Function method : stmt.methods) {
-      resolveFunction(method, FunctionType.METHOD);
-    }
+      beginScope();
+      Token fakeThis =
+          new Token(TokenType.IDENTIFIER, "this", null, stmt.name.line);
+      declare(fakeThis);
+      define(fakeThis);
 
-    endScope();
+      for (Stmt.Function method : stmt.methods) {
+        FunctionType type = FunctionType.METHOD;
+        if (method.name.lexeme.equals("init")) {
+          type = FunctionType.INITIALIZER;
+        }
+        resolveFunction(method, type);
+      }
 
-  // Resolve static methods WITHOUT 'this'
-    for (Stmt.Function method : stmt.classMethods) {
-      resolveFunction(method, FunctionType.METHOD);
-    }
+      endScope(); // end this
 
-    currentClass = enclosingClass;
-    return null;  
-  }
+      if (stmt.superclass != null) endScope(); // end super
+
+      currentClass = enclosingClass;
+      return null;
+}
 //< Classes resolver-visit-class
 //> visit-expression-stmt
   @Override
