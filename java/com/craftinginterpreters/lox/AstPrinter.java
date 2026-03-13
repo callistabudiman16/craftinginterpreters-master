@@ -36,6 +36,19 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   }
 
   @Override
+    public String visitMixinStmt(Stmt.Mixin stmt) {
+      StringBuilder builder = new StringBuilder();
+      builder.append("(mixin ").append(stmt.name.lexeme);
+
+      for (Stmt.Function method : stmt.methods) {
+        builder.append(" ");
+        builder.append(method.accept(this));
+      }
+
+      builder.append(")");
+      return builder.toString();
+    }
+  @Override
     public String visitBreakStmt(Stmt.Break stmt) {
       return "break";
     }

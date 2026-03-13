@@ -31,6 +31,8 @@ class Scanner {
     keywords.put("var",    VAR);
     keywords.put("while",  WHILE);
     keywords.put("break", TokenType.BREAK);
+    keywords.put("mixin", TokenType.MIXIN);
+    keywords.put("with", TokenType.WITH);
   }
 //< keyword-map
   private final String source;

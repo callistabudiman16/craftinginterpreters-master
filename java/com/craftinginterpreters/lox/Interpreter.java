@@ -117,6 +117,25 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 
+  @Override
+  public Void visitMixinStmt(Stmt.Mixin stmt) {
+  environment.define(stmt.name.lexeme, null);
+
+    Map<String, LoxFunction> methods = new HashMap<>();
+    for (Stmt.Function method : stmt.methods) {
+      LoxFunction function = new LoxFunction(
+          method, environment,
+          method.name.lexeme.equals("init"),
+          method.isGetter 
+      );
+      methods.put(method.name.lexeme, function);
+   }
+
+    LoxMixin mixin = new LoxMixin(stmt.name.lexeme, methods);
+    environment.assign(stmt.name, mixin);
+    return null;
+  }
+
  @Override
   public Object visitFunctionExpr(Expr.Function expr) {
     return new LoxFunction(expr, environment);
@@ -133,6 +152,7 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Classes interpreter-visit-class
   @Override
   public Void visitClassStmt(Stmt.Class stmt) {
+    Map<String, LoxFunction> methods = new HashMap<>();
 
     LoxClass superclass = null;
 
@@ -155,7 +175,37 @@ class Interpreter implements Expr.Visitor<Object>,
       environment.define("super", superclass);
    }
 
-    Map<String, LoxFunction> methods = new HashMap<>();
+ //merge mixin
+  for (Expr.Variable mixinExpr : stmt.mixins) {
+    Object mixinObj = evaluate(mixinExpr);
+    if (!(mixinObj instanceof LoxMixin)) {
+      throw new RuntimeError(mixinExpr.name, "Can only mix in a mixin.");
+   }
+
+    LoxMixin mixin = (LoxMixin)mixinObj;
+    for (Map.Entry<String, LoxFunction> entry : mixin.methods().entrySet()) {
+      String methodName = entry.getKey();
+
+      // conflict between mixins -> error (class can still override later)
+      if (methods.containsKey(methodName)) {
+        throw new RuntimeError(mixinExpr.name,
+            "Conflicting mixin method '" + methodName + "'.");
+      }
+
+    methods.put(methodName, entry.getValue());
+  }
+}
+
+// 2) Now add class methods (these override mixin methods)
+  for (Stmt.Function method : stmt.methods) {
+    LoxFunction function = new LoxFunction(
+        method, environment,
+        method.name.lexeme.equals("init"),
+        method.isGetter // if present
+    );
+    methods.put(method.name.lexeme, function);
+  }
+
     for (Stmt.Function method : stmt.methods) {
       boolean isInit = method.name.lexeme.equals("init");
       LoxFunction function =

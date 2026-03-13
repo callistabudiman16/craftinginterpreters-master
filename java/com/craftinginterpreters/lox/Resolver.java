@@ -137,12 +137,28 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         resolveFunction(method, type);
       }
 
-      endScope(); // end this
+      endScope(); 
 
-      if (stmt.superclass != null) endScope(); // end super
+      if (stmt.superclass != null) endScope();
 
       currentClass = enclosingClass;
       return null;
+}
+
+
+  @Override
+public Void visitMixinStmt(Stmt.Mixin stmt) {
+
+  declare(stmt.name);
+  define(stmt.name);
+
+  if (stmt.methods == null) return null;
+
+  for (Stmt.Function method : stmt.methods) {
+    resolveFunction(method, FunctionType.METHOD);
+  }
+
+  return null;
 }
 //< Classes resolver-visit-class
 //> visit-expression-stmt

@@ -3,6 +3,8 @@ package com.craftinginterpreters.lox;
 
 import java.util.List;
 
+import com.craftinginterpreters.lox.Expr.Variable;
+
 abstract class Stmt {
   interface Visitor<R> {
     R visitBlockStmt(Block stmt);
@@ -15,9 +17,26 @@ abstract class Stmt {
     R visitBreakStmt(Break stmt);
     R visitVarStmt(Var stmt);
     R visitWhileStmt(While stmt);
+    R visitMixinStmt(Mixin stmt);
   }
 
   // Nested Stmt classes here...
+
+    static class Mixin extends Stmt {
+    final Token name;
+    final List<Stmt.Function> methods;
+    public Variable[] mixins;
+
+   Mixin(Token name, List<Stmt.Function> methods) {
+      this.name = name;
+      this.methods = methods;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitMixinStmt(this);
+    }
+  }
 //> stmt-block
   static class Block extends Stmt {
     Block(List<Stmt> statements) {
@@ -34,25 +53,30 @@ abstract class Stmt {
 //< stmt-block
 //> stmt-class
   static class Class extends Stmt {
+
+    final Token name;
+    final Expr.Variable superclass;
+    final List<Expr.Variable> mixins;
+    final List<Stmt.Function> methods;
+    final List<Stmt.Function> classMethods;
     Class(Token name,
-          Expr.Variable superclass,
-          List<Stmt.Function> methods,
-          List<Stmt.Function> classMethods) {
-      this.name = name;
-      this.superclass = superclass;
-      this.methods = methods;
-      this.classMethods = classMethods;
-    }
+        Expr.Variable superclass,
+        List<Expr.Variable> mixins,
+        List<Stmt.Function> methods,
+        List<Stmt.Function> classMethods) {
+    this.name = name;
+    this.superclass = superclass;
+    this.mixins = mixins;
+    this.methods = methods;
+    this.classMethods = classMethods;
+  }
+
 
     @Override
     <R> R accept(Visitor<R> visitor) {
       return visitor.visitClassStmt(this);
     }
-
-    final Token name;
-    final Expr.Variable superclass;
-    final List<Stmt.Function> methods;
-    final List<Stmt.Function> classMethods; 
+    
   }
 //< stmt-class
 //> stmt-expression

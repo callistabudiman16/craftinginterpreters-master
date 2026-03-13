@@ -57,6 +57,7 @@ class Parser {
 //< expression
 //> Statements and State declaration
   private Stmt declaration() {
+    if (match(MIXIN)) return mixinDeclaration();
     try {
 //> Classes match-class
       if (match(CLASS)) return classDeclaration();
@@ -78,6 +79,20 @@ class Parser {
     if (isAtEnd()) return false;
     return tokens.get(current + 1).type == type;
   }
+
+
+    private Stmt mixinDeclaration() {
+    Token name = consume(IDENTIFIER, "Expect mixin name.");
+    consume(LEFT_BRACE, "Expect '{' before mixin body.");
+
+    List<Stmt.Function> methods = new ArrayList<>();
+    while (!check(RIGHT_BRACE) && !isAtEnd()) {
+      methods.add(function("method")); // reuse your existing method parser
+    }
+
+    consume(RIGHT_BRACE, "Expect '}' after mixin body.");
+    return new Stmt.Mixin(name, methods);
+  }
 //< Statements and State declaration
 //> Classes parse-class-declaration
   private Stmt classDeclaration() {
@@ -87,6 +102,14 @@ class Parser {
     if (match(LESS)) {
         consume(IDENTIFIER, "Expect superclass name.");
         superclass = new Expr.Variable(previous());
+    }
+
+    List<Expr.Variable> mixins = new ArrayList<>();
+    if (match(WITH)) {
+      do {
+        Token mixinName = consume(IDENTIFIER, "Expect mixin name after 'with'.");
+        mixins.add(new Expr.Variable(mixinName));
+      } while (match(COMMA));
     }
 
     consume(LEFT_BRACE, "Expect '{' before class body.");
@@ -100,7 +123,7 @@ class Parser {
 
     consume(RIGHT_BRACE, "Expect '}' after class body.");
 
-    return new Stmt.Class(name, superclass, methods, classMethods);
+    return new Stmt.Class(name, superclass, mixins, methods, classMethods);
 }
 
   private Stmt.Function classMember(String kind) {
