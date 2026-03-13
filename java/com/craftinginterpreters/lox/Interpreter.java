@@ -30,6 +30,7 @@ class Interpreter implements Expr.Visitor<Object>,
 //< Functions global-environment
 //> Resolving and Binding locals-field
   private final Map<Expr, Local> locals = new HashMap<>();
+  
 //< Resolving and Binding locals-field
 //> Statements and State environment-field
 
@@ -116,9 +117,9 @@ class Interpreter implements Expr.Visitor<Object>,
     }
   }
 
-  @Override
+ @Override
   public Object visitFunctionExpr(Expr.Function expr) {
-    return new LoxFunction(expr, environment, false);
+    return new LoxFunction(expr, environment);
   }
 
 //< Statements and State execute-block
@@ -136,19 +137,19 @@ class Interpreter implements Expr.Visitor<Object>,
    environment.define(stmt.name.lexeme, null);
 
     Map<String, LoxFunction> methods = new HashMap<>();
-      for (Stmt.Function method : stmt.methods) {
-        LoxFunction function =
-            new LoxFunction(method, environment,
-                method.name.lexeme.equals("init"));
-        methods.put(method.name.lexeme, function);
-      }
+    for (Stmt.Function method : stmt.methods) {
+      boolean isInit = method.name.lexeme.equals("init");
+      LoxFunction function =
+          new LoxFunction(method, environment, isInit, method.isGetter);
+      methods.put(method.name.lexeme, function);
+    }
 
-     Map<String, LoxFunction> classMethods = new HashMap<>();
-      for (Stmt.Function method : stmt.classMethods) {
-        LoxFunction function =
-            new LoxFunction(method, environment, false);
-        classMethods.put(method.name.lexeme, function);
-      }
+    Map<String, LoxFunction> classMethods = new HashMap<>();
+    for (Stmt.Function method : stmt.classMethods) {
+      LoxFunction function =
+          new LoxFunction(method, environment, false, method.isGetter);
+      classMethods.put(method.name.lexeme, function);
+}    
 
       LoxClass klass =
           new LoxClass(stmt.name.lexeme, methods, classMethods);
@@ -175,7 +176,7 @@ class Interpreter implements Expr.Visitor<Object>,
 */
 //> Classes construct-function
     LoxFunction function = new LoxFunction(stmt, environment,
-                                           false);
+                                           false, stmt.isGetter);
 //< Classes construct-function
     environment.define(stmt.name.lexeme, function);
     return null;
@@ -370,11 +371,15 @@ public Void visitBreakStmt(Stmt.Break stmt) {
   public Object visitGetExpr(Expr.Get expr) {
     Object object = evaluate(expr.object);
     if (object instanceof LoxInstance) {
-      return ((LoxInstance) object).get(expr.name);
-    }
+      Object value = ((LoxInstance) object).get(expr.name);
 
-    throw new RuntimeError(expr.name,
-        "Only instances have properties.");
+      if (value instanceof LoxFunction && ((LoxFunction) value).isGetter()) {
+        return ((LoxFunction) value).call(this, List.of());
+      }
+
+      return value;
+    }
+    throw new RuntimeError(expr.name, "Only instances have properties.");
   }
 //< Classes interpreter-visit-get
 //> visit-grouping

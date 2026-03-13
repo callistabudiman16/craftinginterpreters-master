@@ -71,21 +71,29 @@ abstract class Stmt {
 //< stmt-expression
 //> stmt-function
   static class Function extends Stmt {
-    Function(Token name, List<Token> params, List<Stmt> body) {
-      this.name = name;
-      this.params = params;
-      this.body = body;
-    }
-
-    @Override
-    <R> R accept(Visitor<R> visitor) {
-      return visitor.visitFunctionStmt(this);
-    }
-
     final Token name;
     final List<Token> params;
     final List<Stmt> body;
+    final boolean isGetter;   // <-- ADD THIS
+
+    Function(Token name,
+           List<Token> params,
+           List<Stmt> body,
+           boolean isGetter) {
+      this.name = name;
+      this.params = params;
+      this.body = body;
+      this.isGetter = isGetter;
+    }
+
+   @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitFunctionStmt(this);
+    }
   }
+
+
+  
 //< stmt-function
 //> stmt-if
   static class If extends Stmt {

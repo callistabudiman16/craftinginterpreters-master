@@ -95,20 +95,44 @@ class Parser {
     List<Stmt.Function> classMethods = new ArrayList<>();
 
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
-        boolean isStatic = match(CLASS);
-        Stmt.Function method = function("method");
-
-        if (isStatic) {
-            classMethods.add(method);
-        } else {
-            methods.add(method);
-        }
-    }
+  methods.add(classMember("method"));
+}
 
     consume(RIGHT_BRACE, "Expect '}' after class body.");
 
     return new Stmt.Class(name, superclass, methods, classMethods);
 }
+
+  private Stmt.Function classMember(String kind) {
+  Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+  boolean isGetter;
+  List<Token> parameters = new ArrayList<>();
+
+  if (match(LEFT_PAREN)) {
+    isGetter = false;
+
+    if (!check(RIGHT_PAREN)) {
+      do {
+        if (parameters.size() >= 255) {
+          error(peek(), "Can't have more than 255 parameters.");
+        }
+        parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+      } while (match(COMMA));
+    }
+    consume(RIGHT_PAREN, "Expect ')' after parameters.");
+  } else {
+    isGetter = true;
+  }
+
+  consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+  List<Stmt> body = block();
+
+  return new Stmt.Function(name, parameters, body, isGetter);
+}
+
+
+
 //< Classes parse-class-declaration
 //> Statements and State parse-statement
   private Stmt statement() {
@@ -264,32 +288,64 @@ class Parser {
     consume(SEMICOLON, "Expect ';' after expression.");
     return new Stmt.Expression(expr);
   }
+
+
+  private Stmt.Function function(String kind) {
+  Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+  consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
+  List<Token> parameters = new ArrayList<>();
+  if (!check(RIGHT_PAREN)) {
+    do {
+      if (parameters.size() >= 255) {
+        error(peek(), "Can't have more than 255 parameters.");
+      }
+      parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+    } while (match(COMMA));
+  }
+  consume(RIGHT_PAREN, "Expect ')' after parameters.");
+
+  consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+  List<Stmt> body = block();
+  return new Stmt.Function(name, parameters, body, false);
+}
+
+
 //< Statements and State parse-expression-statement
 //> Functions parse-function
-  private Stmt.Function function(String kind) {
+  private Stmt.Function method(String kind) {
     Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
-//> parse-parameters
-    consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
-    List<Token> parameters = new ArrayList<>();
-    if (!check(RIGHT_PAREN)) {
-      do {
-        if (parameters.size() >= 255) {
-          error(peek(), "Can't have more than 255 parameters.");
-        }
 
-        parameters.add(
-            consume(IDENTIFIER, "Expect parameter name."));
-      } while (match(COMMA));
+    boolean isGetter = false;
+    List<Token> parameters = new ArrayList<>();
+
+  // Getter if there is no '(' after the name.
+    if (match(LEFT_PAREN)) {
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+   } else {
+      isGetter = true;
     }
-    consume(RIGHT_PAREN, "Expect ')' after parameters.");
-//< parse-parameters
-//> parse-body
 
     consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
     List<Stmt> body = block();
-    return new Stmt.Function(name, parameters, body);
-//< parse-body
+
+    return new Stmt.Function(name, parameters, body, isGetter);
   }
+
+
+
+
+
+
+
 //< Functions parse-function
 //> Statements and State block
   private List<Stmt> block() {
