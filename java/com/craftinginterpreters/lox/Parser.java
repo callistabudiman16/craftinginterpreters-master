@@ -82,31 +82,33 @@ class Parser {
 //> Classes parse-class-declaration
   private Stmt classDeclaration() {
     Token name = consume(IDENTIFIER, "Expect class name.");
-//> Inheritance parse-superclass
 
     Expr.Variable superclass = null;
     if (match(LESS)) {
-      consume(IDENTIFIER, "Expect superclass name.");
-      superclass = new Expr.Variable(previous());
+        consume(IDENTIFIER, "Expect superclass name.");
+        superclass = new Expr.Variable(previous());
     }
 
-//< Inheritance parse-superclass
     consume(LEFT_BRACE, "Expect '{' before class body.");
 
     List<Stmt.Function> methods = new ArrayList<>();
+    List<Stmt.Function> classMethods = new ArrayList<>();
+
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
-      methods.add(function("method"));
+        boolean isStatic = match(CLASS);
+        Stmt.Function method = function("method");
+
+        if (isStatic) {
+            classMethods.add(method);
+        } else {
+            methods.add(method);
+        }
     }
 
     consume(RIGHT_BRACE, "Expect '}' after class body.");
 
-/* Classes parse-class-declaration < Inheritance construct-class-ast
-    return new Stmt.Class(name, methods);
-*/
-//> Inheritance construct-class-ast
-    return new Stmt.Class(name, superclass, methods);
-//< Inheritance construct-class-ast
-  }
+    return new Stmt.Class(name, superclass, methods, classMethods);
+}
 //< Classes parse-class-declaration
 //> Statements and State parse-statement
   private Stmt statement() {

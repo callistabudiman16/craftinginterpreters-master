@@ -107,64 +107,29 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     ClassType enclosingClass = currentClass;
     currentClass = ClassType.CLASS;
 
-//< set-current-class
     declare(stmt.name);
     define(stmt.name);
-//> Inheritance resolve-superclass
 
-//> inherit-self
-    if (stmt.superclass != null &&
-        stmt.name.lexeme.equals(stmt.superclass.name.lexeme)) {
-      Lox.error(stmt.superclass.name,
-          "A class can't inherit from itself.");
-    }
 
-//< inherit-self
-    if (stmt.superclass != null) {
-//> set-current-subclass
-      currentClass = ClassType.SUBCLASS;
-//< set-current-subclass
-      resolve(stmt.superclass);
-    }
-//< Inheritance resolve-superclass
-//> Inheritance begin-super-scope
-
-    if (stmt.superclass != null) {
-      beginScope();
-      //scopes.peek().put("super", new VarState(name, true, true));
-    }
-//< Inheritance begin-super-scope
-//> resolve-methods
-
-//> resolver-begin-this-scope
     beginScope();
-    //scopes.peek().put("this", new VarState(true, true));
+    
+    Token thisToken = new Token(TokenType.THIS, "this", null, stmt.name.line);
+    declare(thisToken);
+    define(thisToken);
 
-//< resolver-begin-this-scope
     for (Stmt.Function method : stmt.methods) {
-      FunctionType declaration = FunctionType.METHOD;
-//> resolver-initializer-type
-      if (method.name.lexeme.equals("init")) {
-        declaration = FunctionType.INITIALIZER;
-      }
-
-//< resolver-initializer-type
-      resolveFunction(method, declaration); // [local]
+      resolveFunction(method, FunctionType.METHOD);
     }
 
-//> resolver-end-this-scope
     endScope();
 
-//< resolver-end-this-scope
-//< resolve-methods
-//> Inheritance end-super-scope
-    if (stmt.superclass != null) endScope();
+  // Resolve static methods WITHOUT 'this'
+    for (Stmt.Function method : stmt.classMethods) {
+      resolveFunction(method, FunctionType.METHOD);
+    }
 
-//< Inheritance end-super-scope
-//> restore-current-class
     currentClass = enclosingClass;
-//< restore-current-class
-    return null;
+    return null;  
   }
 //< Classes resolver-visit-class
 //> visit-expression-stmt
