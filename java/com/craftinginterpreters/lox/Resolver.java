@@ -145,21 +145,42 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
       return null;
 }
 
-
   @Override
-public Void visitMixinStmt(Stmt.Mixin stmt) {
-
-  declare(stmt.name);
-  define(stmt.name);
-
-  if (stmt.methods == null) return null;
-
-  for (Stmt.Function method : stmt.methods) {
-    resolveFunction(method, FunctionType.METHOD);
+  public Void visitListExpr(Expr.List expr) {
+    for (Expr element : expr.elements) resolve(element);
+    return null;
   }
 
-  return null;
-}
+  @Override
+  public Void visitIndexExpr(Expr.Index expr) {
+    resolve(expr.object);
+    resolve(expr.index);
+    return null;
+  }
+
+  @Override
+  public Void visitIndexSetExpr(Expr.IndexSet expr) {
+    resolve(expr.value);
+    resolve(expr.object);
+    resolve(expr.index);
+    return null;
+  }
+
+
+  @Override
+  public Void visitMixinStmt(Stmt.Mixin stmt) {
+
+    declare(stmt.name);
+    define(stmt.name);
+
+    if (stmt.methods == null) return null;
+
+    for (Stmt.Function method : stmt.methods) {
+     resolveFunction(method, FunctionType.METHOD);
+    }
+
+    return null;
+  }
 //< Classes resolver-visit-class
 //> visit-expression-stmt
   @Override

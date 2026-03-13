@@ -18,9 +18,39 @@ abstract class Expr {
     R visitThisExpr(This expr);
     R visitUnaryExpr(Unary expr);
     R visitVariableExpr(Variable expr);
+    R visitListExpr(List expr);
+    R visitIndexExpr(Index expr);
+    R visitIndexSetExpr(IndexSet expr);
   }
 
   // Nested Expr classes here...
+
+    static class List extends Expr {
+    final java.util.List<Expr> elements;
+    List(java.util.List<Expr> elements) { this.elements = elements; }
+    @Override <R> R accept(Visitor<R> visitor) { return visitor.visitListExpr(this); }
+  }
+
+  static class Index extends Expr {
+    final Expr object;
+    final Token bracket;   // the '[' token, for error reporting
+    final Expr index;
+    Index(Expr object, Token bracket, Expr index) {
+      this.object = object; this.bracket = bracket; this.index = index;
+    }
+    @Override <R> R accept(Visitor<R> visitor) { return visitor.visitIndexExpr(this); }
+  }
+
+  static class IndexSet extends Expr {
+    final Expr object;
+    final Token bracket;
+    final Expr index;
+    final Expr value;
+    IndexSet(Expr object, Token bracket, Expr index, Expr value) {
+      this.object = object; this.bracket = bracket; this.index = index; this.value = value;
+    }
+    @Override <R> R accept(Visitor<R> visitor) { return visitor.visitIndexSetExpr(this); }
+  }
 //> expr-assign
   static class Assign extends Expr {
     Assign(Token name, Expr value) {
@@ -57,7 +87,7 @@ abstract class Expr {
 //< expr-binary
 //> expr-call
   static class Call extends Expr {
-    Call(Expr callee, Token paren, List<Expr> arguments) {
+    Call(Expr callee, Token paren, java.util.List<Expr> arguments) {
       this.callee = callee;
       this.paren = paren;
       this.arguments = arguments;
@@ -70,12 +100,12 @@ abstract class Expr {
 
     final Expr callee;
     final Token paren;
-    final List<Expr> arguments;
+    final java.util.List<Expr> arguments;
   }
 //< expr-call
 //> expr-function
   static class Function extends Expr {
-    Function(List<Token> params, List<Stmt> body) {
+    Function(java.util.List<Token> params, java.util.List<Stmt> body) {
       this.params = params;
       this.body = body;
     }
@@ -85,8 +115,8 @@ abstract class Expr {
       return visitor.visitFunctionExpr(this);
     }
 
-    final List<Token> params;
-    final List<Stmt> body;
+    final java.util.List<Token> params;
+    final java.util.List<Stmt> body;
   }
 //< expr-function
 //> expr-get

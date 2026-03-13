@@ -37,6 +37,46 @@ class Interpreter implements Expr.Visitor<Object>,
 //< Statements and State environment-field
 //> Functions interpreter-constructor
   Interpreter() {
+    globals.define("len", new LoxCallable() {
+  @Override public int arity() { return 1; }
+  @Override public Object call(Interpreter interpreter, List<Object> args) {
+    Object o = args.get(0);
+    if (o instanceof String) return (double)((String)o).length();
+    if (o instanceof java.util.List) return (double)((java.util.List<?>)o).size();
+    throw new RuntimeError(new Token(TokenType.IDENTIFIER, "len", null, 0),
+        "len() expects a string or a list.");
+  }
+});
+
+globals.define("push", new LoxCallable() {
+  @Override public int arity() { return 2; }
+  @Override public Object call(Interpreter interpreter, List<Object> args) {
+    Object o = args.get(0);
+    if (!(o instanceof java.util.List)) {
+      throw new RuntimeError(new Token(TokenType.IDENTIFIER, "push", null, 0),
+          "push() expects a list as first argument.");
+    }
+    @SuppressWarnings("unchecked")
+    java.util.List<Object> list = (java.util.List<Object>) o;
+    list.add(args.get(1));
+    return null;
+  }
+});
+
+globals.define("pop", new LoxCallable() {
+  @Override public int arity() { return 1; }
+  @Override public Object call(Interpreter interpreter, List<Object> args) {
+    Object o = args.get(0);
+    if (!(o instanceof java.util.List)) {
+      throw new RuntimeError(new Token(TokenType.IDENTIFIER, "pop", null, 0),
+          "pop() expects a list.");
+    }
+    @SuppressWarnings("unchecked")
+    java.util.List<Object> list = (java.util.List<Object>) o;
+    if (list.isEmpty()) return null;
+    return list.remove(list.size() - 1);
+  }
+});
     globals.define("clock", new LoxCallable() {
       @Override
       public int arity() { return 0; }
@@ -526,6 +566,39 @@ public Void visitBreakStmt(Stmt.Break stmt) {
     return method.bind(object);
 //< super-find-method
   }
+
+
+  @Override
+public Object visitListExpr(Expr.List expr) {
+  java.util.List<Object> list = new java.util.ArrayList<>();
+  for (Expr element : expr.elements) {
+    list.add(evaluate(element));
+  }
+  return list;
+}
+
+@Override
+public Object visitIndexExpr(Expr.Index expr) {
+  Object obj = evaluate(expr.object);
+  java.util.List<Object> list = requireList(expr.bracket, obj);
+
+  Object indexVal = evaluate(expr.index);
+  int i = requireIntIndex(expr.bracket, indexVal, list.size());
+  return list.get(i);
+}
+
+@Override
+public Object visitIndexSetExpr(Expr.IndexSet expr) {
+  Object obj = evaluate(expr.object);
+  java.util.List<Object> list = requireList(expr.bracket, obj);
+
+  Object indexVal = evaluate(expr.index);
+  int i = requireIntIndex(expr.bracket, indexVal, list.size());
+
+  Object value = evaluate(expr.value);
+  list.set(i, value);
+  return value;
+}
 //< Inheritance interpreter-visit-super
 //> Classes interpreter-visit-this
   @Override
@@ -593,6 +666,32 @@ public Void visitBreakStmt(Stmt.Break stmt) {
     if (object == null) return false;
     if (object instanceof Boolean) return (boolean)object;
     return true;
+  }
+
+
+  // 13.3
+    private java.util.List<Object> requireList(Token where, Object object) {
+    if (object instanceof java.util.List) {
+     @SuppressWarnings("unchecked")
+      java.util.List<Object> list = (java.util.List<Object>) object;
+     return list;
+    }
+    throw new RuntimeError(where, "Only lists can be indexed.");
+  }
+
+  private int requireIntIndex(Token where, Object indexValue, int size) {
+    if (!(indexValue instanceof Double)) {
+      throw new RuntimeError(where, "List index must be a number.");
+    }
+    double d = (Double) indexValue;
+    int i = (int) d;
+    if (i != d) {
+      throw new RuntimeError(where, "List index must be an integer.");
+    }
+    if (i < 0 || i >= size) {
+      throw new RuntimeError(where, "List index out of bounds.");
+    }
+    return i;
   }
 //< is-truthy
 //> is-equal
