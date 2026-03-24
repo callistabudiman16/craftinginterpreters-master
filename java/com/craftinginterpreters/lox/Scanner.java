@@ -31,6 +31,8 @@ class Scanner {
     keywords.put("var",    VAR);
     keywords.put("while",  WHILE);
     keywords.put("break", TokenType.BREAK);
+    keywords.put("mixin", TokenType.MIXIN);
+    keywords.put("with", TokenType.WITH);
   }
 //< keyword-map
   private final String source;
@@ -83,6 +85,9 @@ class Scanner {
       case '>':
         addToken(match('=') ? GREATER_EQUAL : GREATER);
         break;
+      
+      case '[': addToken(LEFT_BRACKET); break;
+      case ']': addToken(RIGHT_BRACKET); break;
 //< two-char-tokens
 //> slash
       case '/':

@@ -1,0 +1,22 @@
+mixin Greeter {
+  hello() {
+    print "hello from Greeter";
+  }
+}
+
+mixin Farewell {
+  bye() {
+    print "bye from Farewell";
+  }
+}
+
+class Person with Greeter, Farewell {
+  // override mixin method
+  hello() {
+    print "hello from Person";
+  }
+}
+
+var p = Person();
+p.hello();
+p.bye();  

@@ -36,6 +36,19 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   }
 
   @Override
+    public String visitMixinStmt(Stmt.Mixin stmt) {
+      StringBuilder builder = new StringBuilder();
+      builder.append("(mixin ").append(stmt.name.lexeme);
+
+      for (Stmt.Function method : stmt.methods) {
+        builder.append(" ");
+        builder.append(method.accept(this));
+      }
+
+      builder.append(")");
+      return builder.toString();
+    }
+  @Override
     public String visitBreakStmt(Stmt.Break stmt) {
       return "break";
     }
@@ -217,6 +230,28 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   @Override
   public String visitVariableExpr(Expr.Variable expr) {
     return expr.name.lexeme;
+  }
+
+  @Override
+  public String visitListExpr(Expr.List expr) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("[");
+    for (int i = 0; i < expr.elements.size(); i++) {
+      if (i > 0) builder.append(", ");
+      builder.append(expr.elements.get(i).accept(this));
+    }
+    builder.append("]");
+    return builder.toString();
+  }
+
+  @Override
+  public String visitIndexExpr(Expr.Index expr) {
+    return parenthesize2("index", expr.object, expr.index);
+  }
+
+  @Override
+  public String visitIndexSetExpr(Expr.IndexSet expr) {
+    return parenthesize2("index-set", expr.object, expr.index, expr.value);
   }
 //< Statements and State omit
 //< visit-methods

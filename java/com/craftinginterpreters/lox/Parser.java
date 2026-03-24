@@ -57,6 +57,7 @@ class Parser {
 //< expression
 //> Statements and State declaration
   private Stmt declaration() {
+    if (match(MIXIN)) return mixinDeclaration();
     try {
 //> Classes match-class
       if (match(CLASS)) return classDeclaration();
@@ -78,35 +79,83 @@ class Parser {
     if (isAtEnd()) return false;
     return tokens.get(current + 1).type == type;
   }
+
+
+    private Stmt mixinDeclaration() {
+    Token name = consume(IDENTIFIER, "Expect mixin name.");
+    consume(LEFT_BRACE, "Expect '{' before mixin body.");
+
+    List<Stmt.Function> methods = new ArrayList<>();
+    while (!check(RIGHT_BRACE) && !isAtEnd()) {
+      methods.add(function("method")); // reuse your existing method parser
+    }
+
+    consume(RIGHT_BRACE, "Expect '}' after mixin body.");
+    return new Stmt.Mixin(name, methods);
+  }
 //< Statements and State declaration
 //> Classes parse-class-declaration
   private Stmt classDeclaration() {
     Token name = consume(IDENTIFIER, "Expect class name.");
-//> Inheritance parse-superclass
 
     Expr.Variable superclass = null;
     if (match(LESS)) {
-      consume(IDENTIFIER, "Expect superclass name.");
-      superclass = new Expr.Variable(previous());
+        consume(IDENTIFIER, "Expect superclass name.");
+        superclass = new Expr.Variable(previous());
     }
 
-//< Inheritance parse-superclass
+    List<Expr.Variable> mixins = new ArrayList<>();
+    if (match(WITH)) {
+      do {
+        Token mixinName = consume(IDENTIFIER, "Expect mixin name after 'with'.");
+        mixins.add(new Expr.Variable(mixinName));
+      } while (match(COMMA));
+    }
+
     consume(LEFT_BRACE, "Expect '{' before class body.");
 
     List<Stmt.Function> methods = new ArrayList<>();
+    List<Stmt.Function> classMethods = new ArrayList<>();
+
     while (!check(RIGHT_BRACE) && !isAtEnd()) {
-      methods.add(function("method"));
-    }
+  methods.add(classMember("method"));
+}
 
     consume(RIGHT_BRACE, "Expect '}' after class body.");
 
-/* Classes parse-class-declaration < Inheritance construct-class-ast
-    return new Stmt.Class(name, methods);
-*/
-//> Inheritance construct-class-ast
-    return new Stmt.Class(name, superclass, methods);
-//< Inheritance construct-class-ast
+    return new Stmt.Class(name, superclass, mixins, methods, classMethods);
+}
+
+  private Stmt.Function classMember(String kind) {
+  Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+  boolean isGetter;
+  List<Token> parameters = new ArrayList<>();
+
+  if (match(LEFT_PAREN)) {
+    isGetter = false;
+
+    if (!check(RIGHT_PAREN)) {
+      do {
+        if (parameters.size() >= 255) {
+          error(peek(), "Can't have more than 255 parameters.");
+        }
+        parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+      } while (match(COMMA));
+    }
+    consume(RIGHT_PAREN, "Expect ')' after parameters.");
+  } else {
+    isGetter = true;
   }
+
+  consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+  List<Stmt> body = block();
+
+  return new Stmt.Function(name, parameters, body, isGetter);
+}
+
+
+
 //< Classes parse-class-declaration
 //> Statements and State parse-statement
   private Stmt statement() {
@@ -262,32 +311,64 @@ class Parser {
     consume(SEMICOLON, "Expect ';' after expression.");
     return new Stmt.Expression(expr);
   }
+
+
+  private Stmt.Function function(String kind) {
+  Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
+
+  consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
+  List<Token> parameters = new ArrayList<>();
+  if (!check(RIGHT_PAREN)) {
+    do {
+      if (parameters.size() >= 255) {
+        error(peek(), "Can't have more than 255 parameters.");
+      }
+      parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+    } while (match(COMMA));
+  }
+  consume(RIGHT_PAREN, "Expect ')' after parameters.");
+
+  consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
+  List<Stmt> body = block();
+  return new Stmt.Function(name, parameters, body, false);
+}
+
+
 //< Statements and State parse-expression-statement
 //> Functions parse-function
-  private Stmt.Function function(String kind) {
+  private Stmt.Function method(String kind) {
     Token name = consume(IDENTIFIER, "Expect " + kind + " name.");
-//> parse-parameters
-    consume(LEFT_PAREN, "Expect '(' after " + kind + " name.");
-    List<Token> parameters = new ArrayList<>();
-    if (!check(RIGHT_PAREN)) {
-      do {
-        if (parameters.size() >= 255) {
-          error(peek(), "Can't have more than 255 parameters.");
-        }
 
-        parameters.add(
-            consume(IDENTIFIER, "Expect parameter name."));
-      } while (match(COMMA));
+    boolean isGetter = false;
+    List<Token> parameters = new ArrayList<>();
+
+  // Getter if there is no '(' after the name.
+    if (match(LEFT_PAREN)) {
+      if (!check(RIGHT_PAREN)) {
+        do {
+          if (parameters.size() >= 255) {
+            error(peek(), "Can't have more than 255 parameters.");
+          }
+          parameters.add(consume(IDENTIFIER, "Expect parameter name."));
+        } while (match(COMMA));
+      }
+      consume(RIGHT_PAREN, "Expect ')' after parameters.");
+   } else {
+      isGetter = true;
     }
-    consume(RIGHT_PAREN, "Expect ')' after parameters.");
-//< parse-parameters
-//> parse-body
 
     consume(LEFT_BRACE, "Expect '{' before " + kind + " body.");
     List<Stmt> body = block();
-    return new Stmt.Function(name, parameters, body);
-//< parse-body
+
+    return new Stmt.Function(name, parameters, body, isGetter);
   }
+
+
+
+
+
+
+
 //< Functions parse-function
 //> Statements and State block
   private List<Stmt> block() {
@@ -322,6 +403,9 @@ class Parser {
         Expr.Get get = (Expr.Get)expr;
         return new Expr.Set(get.object, get.name, value);
 //< Classes assign-set
+      } else if (expr instanceof Expr.Index) {
+        Expr.Index get = (Expr.Index) expr;
+        return new Expr.IndexSet(get.object, get.bracket, get.index, value);
       }
 
       error(equals, "Invalid assignment target."); // [no-throw]
@@ -491,6 +575,12 @@ class Parser {
         Token name = consume(IDENTIFIER,
             "Expect property name after '.'.");
         expr = new Expr.Get(expr, name);
+      
+      } else if (match(LEFT_BRACKET)) {
+        Token bracket = previous(); // the '[' token
+        Expr index = expression();
+        consume(RIGHT_BRACKET, "Expect ']' after index.");
+        expr = new Expr.Index(expr, bracket, index);
 //< Classes parse-property
       } else {
         break;
@@ -579,7 +669,19 @@ private void parseRightOperandFor(TokenType op) {
       consume(RIGHT_PAREN, "Expect ')' after expression.");
       return new Expr.Grouping(expr);
     }
+
+    if (match(LEFT_BRACKET)) {
+      List<Expr> elements = new ArrayList<>();
+      if (!check(RIGHT_BRACKET)) {
+       do {
+          elements.add(assignment());
+        } while (match(COMMA));
+      }
+      consume(RIGHT_BRACKET, "Expect ']' after list elements.");
+      return new Expr.List(elements);
+}
 //> primary-error
+
 
 
 

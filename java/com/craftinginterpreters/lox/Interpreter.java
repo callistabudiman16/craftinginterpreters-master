@@ -29,13 +29,54 @@ class Interpreter implements Expr.Visitor<Object>,
   private Environment environment = globals;
 //< Functions global-environment
 //> Resolving and Binding locals-field
-  private final Map<Expr, Integer> locals = new HashMap<>();
+  private final Map<Expr, Local> locals = new HashMap<>();
+  
 //< Resolving and Binding locals-field
 //> Statements and State environment-field
 
 //< Statements and State environment-field
 //> Functions interpreter-constructor
   Interpreter() {
+    globals.define("len", new LoxCallable() {
+  @Override public int arity() { return 1; }
+  @Override public Object call(Interpreter interpreter, List<Object> args) {
+    Object o = args.get(0);
+    if (o instanceof String) return (double)((String)o).length();
+    if (o instanceof java.util.List) return (double)((java.util.List<?>)o).size();
+    throw new RuntimeError(new Token(TokenType.IDENTIFIER, "len", null, 0),
+        "len() expects a string or a list.");
+  }
+});
+
+globals.define("push", new LoxCallable() {
+  @Override public int arity() { return 2; }
+  @Override public Object call(Interpreter interpreter, List<Object> args) {
+    Object o = args.get(0);
+    if (!(o instanceof java.util.List)) {
+      throw new RuntimeError(new Token(TokenType.IDENTIFIER, "push", null, 0),
+          "push() expects a list as first argument.");
+    }
+    @SuppressWarnings("unchecked")
+    java.util.List<Object> list = (java.util.List<Object>) o;
+    list.add(args.get(1));
+    return null;
+  }
+});
+
+globals.define("pop", new LoxCallable() {
+  @Override public int arity() { return 1; }
+  @Override public Object call(Interpreter interpreter, List<Object> args) {
+    Object o = args.get(0);
+    if (!(o instanceof java.util.List)) {
+      throw new RuntimeError(new Token(TokenType.IDENTIFIER, "pop", null, 0),
+          "pop() expects a list.");
+    }
+    @SuppressWarnings("unchecked")
+    java.util.List<Object> list = (java.util.List<Object>) o;
+    if (list.isEmpty()) return null;
+    return list.remove(list.size() - 1);
+  }
+});
     globals.define("clock", new LoxCallable() {
       @Override
       public int arity() { return 0; }
@@ -50,6 +91,19 @@ class Interpreter implements Expr.Visitor<Object>,
       public String toString() { return "<native fn>"; }
     });
   }
+
+
+  private static class Local {
+    final int depth;
+    final int slot;
+
+    Local(int depth, int slot) {
+        this.depth = depth;
+        this.slot = slot;
+    }
+
+
+}
   
 //< Functions interpreter-constructor
 /* Evaluating Expressions interpret < Statements and State interpret
@@ -84,8 +138,8 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 //< Statements and State execute
 //> Resolving and Binding resolve
-  void resolve(Expr expr, int depth) {
-    locals.put(expr, depth);
+  void resolve(Expr expr, int depth, int slot) {
+    locals.put(expr, new Local(depth, slot));
   }
 //< Resolving and Binding resolve
 //> Statements and State execute-block
@@ -104,8 +158,27 @@ class Interpreter implements Expr.Visitor<Object>,
   }
 
   @Override
+  public Void visitMixinStmt(Stmt.Mixin stmt) {
+  environment.define(stmt.name.lexeme, null);
+
+    Map<String, LoxFunction> methods = new HashMap<>();
+    for (Stmt.Function method : stmt.methods) {
+      LoxFunction function = new LoxFunction(
+          method, environment,
+          method.name.lexeme.equals("init"),
+          method.isGetter 
+      );
+      methods.put(method.name.lexeme, function);
+   }
+
+    LoxMixin mixin = new LoxMixin(stmt.name.lexeme, methods);
+    environment.assign(stmt.name, mixin);
+    return null;
+  }
+
+ @Override
   public Object visitFunctionExpr(Expr.Function expr) {
-    return new LoxFunction(expr, environment, false);
+    return new LoxFunction(expr, environment);
   }
 
 //< Statements and State execute-block
@@ -119,58 +192,86 @@ class Interpreter implements Expr.Visitor<Object>,
 //> Classes interpreter-visit-class
   @Override
   public Void visitClassStmt(Stmt.Class stmt) {
-//> Inheritance interpret-superclass
-    Object superclass = null;
+    Map<String, LoxFunction> methods = new HashMap<>();
+
+    LoxClass superclass = null;
+
     if (stmt.superclass != null) {
-      superclass = evaluate(stmt.superclass);
-      if (!(superclass instanceof LoxClass)) {
+      Object sc = evaluate(stmt.superclass);
+
+      if (!(sc instanceof LoxClass)) {
         throw new RuntimeError(stmt.superclass.name,
-            "Superclass must be a class.");
-      }
+          "Superclass must be a class.");
+     }
+
+      superclass = (LoxClass) sc;
     }
 
-//< Inheritance interpret-superclass
-    environment.define(stmt.name.lexeme, null);
-//> Inheritance begin-superclass-environment
+   environment.define(stmt.name.lexeme, null);
+
 
     if (stmt.superclass != null) {
       environment = new Environment(environment);
       environment.define("super", superclass);
-    }
-//< Inheritance begin-superclass-environment
-//> interpret-methods
+   }
 
-    Map<String, LoxFunction> methods = new HashMap<>();
+ //merge mixin
+  for (Expr.Variable mixinExpr : stmt.mixins) {
+    Object mixinObj = evaluate(mixinExpr);
+    if (!(mixinObj instanceof LoxMixin)) {
+      throw new RuntimeError(mixinExpr.name, "Can only mix in a mixin.");
+   }
+
+    LoxMixin mixin = (LoxMixin)mixinObj;
+    for (Map.Entry<String, LoxFunction> entry : mixin.methods().entrySet()) {
+      String methodName = entry.getKey();
+
+      // conflict between mixins -> error (class can still override later)
+      if (methods.containsKey(methodName)) {
+        throw new RuntimeError(mixinExpr.name,
+            "Conflicting mixin method '" + methodName + "'.");
+      }
+
+    methods.put(methodName, entry.getValue());
+  }
+}
+
+// 2) Now add class methods (these override mixin methods)
+  for (Stmt.Function method : stmt.methods) {
+    LoxFunction function = new LoxFunction(
+        method, environment,
+        method.name.lexeme.equals("init"),
+        method.isGetter // if present
+    );
+    methods.put(method.name.lexeme, function);
+  }
+
     for (Stmt.Function method : stmt.methods) {
-/* Classes interpret-methods < Classes interpreter-method-initializer
-      LoxFunction function = new LoxFunction(method, environment);
-*/
-//> interpreter-method-initializer
-      LoxFunction function = new LoxFunction(method, environment,
-          method.name.lexeme.equals("init"));
-//< interpreter-method-initializer
+      boolean isInit = method.name.lexeme.equals("init");
+      LoxFunction function =
+          new LoxFunction(method, environment, isInit, method.isGetter);
       methods.put(method.name.lexeme, function);
     }
 
-/* Classes interpret-methods < Inheritance interpreter-construct-class
-    LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
-*/
-//> Inheritance interpreter-construct-class
-    LoxClass klass = new LoxClass(stmt.name.lexeme,
-        (LoxClass)superclass, methods);
-//> end-superclass-environment
+    Map<String, LoxFunction> classMethods = new HashMap<>();
+    for (Stmt.Function method : stmt.classMethods) {
+      LoxFunction function =
+          new LoxFunction(method, environment, false, method.isGetter);
+      classMethods.put(method.name.lexeme, function);
+    }
 
-    if (superclass != null) {
+    LoxClass klass =
+        new LoxClass(stmt.name.lexeme,
+                    superclass,
+                    methods,
+                    classMethods);
+
+    if (stmt.superclass != null) {
       environment = environment.enclosing;
     }
-//< end-superclass-environment
 
-//< Inheritance interpreter-construct-class
-//< interpret-methods
-/* Classes interpreter-visit-class < Classes interpret-methods
-    LoxClass klass = new LoxClass(stmt.name.lexeme);
-*/
     environment.assign(stmt.name, klass);
+
     return null;
   }
 //< Classes interpreter-visit-class
@@ -192,7 +293,7 @@ class Interpreter implements Expr.Visitor<Object>,
 */
 //> Classes construct-function
     LoxFunction function = new LoxFunction(stmt, environment,
-                                           false);
+                                           false, stmt.isGetter);
 //< Classes construct-function
     environment.define(stmt.name.lexeme, function);
     return null;
@@ -268,16 +369,15 @@ public Void visitBreakStmt(Stmt.Break stmt) {
     environment.assign(expr.name, value);
 */
 //> Resolving and Binding resolved-assign
-
-    Integer distance = locals.get(expr);
-    if (distance != null) {
-      environment.assignAt(distance, expr.name, value);
+    Local local = locals.get(expr);
+    if (local != null) {
+      environment.assignAt(local.depth, local.slot, value);
     } else {
       globals.assign(expr.name, value);
-    }
+  }
 
-//< Resolving and Binding resolved-assign
-    return value;
+  return value;
+    
   }
 //< Statements and State visit-assign
 //> visit-binary
@@ -388,11 +488,15 @@ public Void visitBreakStmt(Stmt.Break stmt) {
   public Object visitGetExpr(Expr.Get expr) {
     Object object = evaluate(expr.object);
     if (object instanceof LoxInstance) {
-      return ((LoxInstance) object).get(expr.name);
-    }
+      Object value = ((LoxInstance) object).get(expr.name);
 
-    throw new RuntimeError(expr.name,
-        "Only instances have properties.");
+      if (value instanceof LoxFunction && ((LoxFunction) value).isGetter()) {
+        return ((LoxFunction) value).call(this, List.of());
+      }
+
+      return value;
+    }
+    throw new RuntimeError(expr.name, "Only instances have properties.");
   }
 //< Classes interpreter-visit-get
 //> visit-grouping
@@ -439,13 +543,14 @@ public Void visitBreakStmt(Stmt.Break stmt) {
 //> Inheritance interpreter-visit-super
   @Override
   public Object visitSuperExpr(Expr.Super expr) {
-    int distance = locals.get(expr);
+    Local local = locals.get(expr);
+    
     LoxClass superclass = (LoxClass)environment.getAt(
-        distance, "super");
+        local.depth, local.slot);
 //> super-find-this
 
     LoxInstance object = (LoxInstance)environment.getAt(
-        distance - 1, "this");
+        local.depth - 1, 0);
 //< super-find-this
 //> super-find-method
 
@@ -461,6 +566,39 @@ public Void visitBreakStmt(Stmt.Break stmt) {
     return method.bind(object);
 //< super-find-method
   }
+
+
+  @Override
+public Object visitListExpr(Expr.List expr) {
+  java.util.List<Object> list = new java.util.ArrayList<>();
+  for (Expr element : expr.elements) {
+    list.add(evaluate(element));
+  }
+  return list;
+}
+
+@Override
+public Object visitIndexExpr(Expr.Index expr) {
+  Object obj = evaluate(expr.object);
+  java.util.List<Object> list = requireList(expr.bracket, obj);
+
+  Object indexVal = evaluate(expr.index);
+  int i = requireIntIndex(expr.bracket, indexVal, list.size());
+  return list.get(i);
+}
+
+@Override
+public Object visitIndexSetExpr(Expr.IndexSet expr) {
+  Object obj = evaluate(expr.object);
+  java.util.List<Object> list = requireList(expr.bracket, obj);
+
+  Object indexVal = evaluate(expr.index);
+  int i = requireIntIndex(expr.bracket, indexVal, list.size());
+
+  Object value = evaluate(expr.value);
+  list.set(i, value);
+  return value;
+}
 //< Inheritance interpreter-visit-super
 //> Classes interpreter-visit-this
   @Override
@@ -501,12 +639,11 @@ public Void visitBreakStmt(Stmt.Break stmt) {
   }
 //> Resolving and Binding look-up-variable
   private Object lookUpVariable(Token name, Expr expr) {
-    Integer distance = locals.get(expr);
-    if (distance != null) {
-      return environment.getAt(distance, name.lexeme);
-    } else {
-      return globals.get(name);
-    }
+    Local local = locals.get(expr);
+    if (local != null) {
+      return environment.getAt(local.depth, local.slot);
+  }
+    return globals.get(name); // globals still by name
   }
 //< Resolving and Binding look-up-variable
 //< Statements and State visit-variable
@@ -529,6 +666,32 @@ public Void visitBreakStmt(Stmt.Break stmt) {
     if (object == null) return false;
     if (object instanceof Boolean) return (boolean)object;
     return true;
+  }
+
+
+  // 13.3
+    private java.util.List<Object> requireList(Token where, Object object) {
+    if (object instanceof java.util.List) {
+     @SuppressWarnings("unchecked")
+      java.util.List<Object> list = (java.util.List<Object>) object;
+     return list;
+    }
+    throw new RuntimeError(where, "Only lists can be indexed.");
+  }
+
+  private int requireIntIndex(Token where, Object indexValue, int size) {
+    if (!(indexValue instanceof Double)) {
+      throw new RuntimeError(where, "List index must be a number.");
+    }
+    double d = (Double) indexValue;
+    int i = (int) d;
+    if (i != d) {
+      throw new RuntimeError(where, "List index must be an integer.");
+    }
+    if (i < 0 || i >= size) {
+      throw new RuntimeError(where, "List index out of bounds.");
+    }
+    return i;
   }
 //< is-truthy
 //> is-equal
