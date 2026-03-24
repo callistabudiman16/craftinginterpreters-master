@@ -68,7 +68,7 @@ int disassembleInstruction(Chunk* chunk, int offset) {
   printf("%04d ", offset);
 //> show-location
   if (offset > 0 &&
-      chunk->lines[offset] == chunk->lines[offset - 1]) {
+      getLine(chunk, offset) == getLine(chunk, offset - 1)) {
     printf("   | ");
   } else {
     printf("%4d ", chunk->lines[offset]);
