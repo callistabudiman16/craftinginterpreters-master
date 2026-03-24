@@ -96,3 +96,18 @@ int getLine(Chunk* chunk, int instruction) {
 
   return -1;
 }
+
+
+void writeConstant(Chunk* chunk, Value value, int line) {
+  int constant = addConstant(chunk, value);
+
+  if (constant <= UINT8_MAX) {
+    writeChunk(chunk, OP_CONSTANT, line);
+    writeChunk(chunk, (uint8_t)constant, line);
+  } else {
+    writeChunk(chunk, OP_CONSTANT_LONG, line);
+    writeChunk(chunk, (constant >> 16) & 0xff, line);
+    writeChunk(chunk, (constant >> 8) & 0xff, line);
+    writeChunk(chunk, constant & 0xff, line);
+  }
+}
