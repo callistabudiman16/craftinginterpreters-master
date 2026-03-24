@@ -79,8 +79,28 @@ static void runFile(const char* path) {
 //< Scanning on Demand run-file
 
 int main(int argc, const char* argv[]) {
-//> A Virtual Machine main-init-vm
   initVM();
+  Chunk chunk;
+  initChunk(&chunk);
+
+  int constant = addConstant(&chunk, 1.2);
+
+  writeChunk(&chunk, OP_CONSTANT, 10);  // offset 0
+  writeChunk(&chunk, constant, 10);     // offset 1
+  writeChunk(&chunk, OP_RETURN, 20);    // offset 2
+  writeChunk(&chunk, OP_NIL, 20);       // offset 3
+  writeChunk(&chunk, OP_TRUE, 20);      // offset 4
+  writeChunk(&chunk, OP_FALSE, 30);     // offset 5
+
+  disassembleChunk(&chunk, "test chunk");
+
+  printf("\nTesting getLine():\n");
+  for (int i = 0; i < chunk.count; i++) {
+    printf("offset %d -> line %d\n", i, getLine(&chunk, i));
+  }
+
+  freeChunk(&chunk);
+  return 0;
 
 //< A Virtual Machine main-init-vm
 /* Chunks of Bytecode main-chunk < Scanning on Demand args
