@@ -120,13 +120,11 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
   newSize = alignSize(newSize);
   Block* block = (Block*)pointer - 1;
 
-  // Shrink in place.
   if (block->size >= newSize) {
     splitBlock(block, newSize);
     return pointer;
   }
 
-  // Try to grow into next free block.
   if (block->next != NULL &&
       block->next->isFree &&
       block->size + sizeof(Block) + block->next->size >= newSize) {
