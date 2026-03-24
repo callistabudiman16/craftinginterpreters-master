@@ -81,14 +81,16 @@ static void runFile(const char* path) {
 int main(int argc, const char* argv[]) {
   initVM();
   Chunk chunk;
-  
   initChunk(&chunk);
 
-  writeConstant(&chunk, 1.2, 123);
+  for (int i = 0; i < 256; i++) {
+    addConstant(&chunk, (double)i);
+  }
+
+  writeConstant(&chunk, 999.9, 123);
   writeChunk(&chunk, OP_RETURN, 123);
 
-  disassembleChunk(&chunk, "test chunk");
-
+  disassembleChunk(&chunk, "test long constant");
   freeChunk(&chunk);
   return 0;
 
