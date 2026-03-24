@@ -29,7 +29,7 @@
     reallocate(pointer, sizeof(type) * (oldCount), 0)
 //< free-array
 
-void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+//void* reallocate(void* pointer, size_t oldSize, size_t newSize);
 //< grow-array
 //> Garbage Collection mark-object-h
 void markObject(Obj* object);
@@ -43,5 +43,8 @@ void collectGarbage();
 //> Strings free-objects-h
 void freeObjects();
 //< Strings free-objects-h
+
+void initAllocator(size_t size);
+void* reallocate(void* pointer, size_t oldSize, size_t newSize);
 
 #endif

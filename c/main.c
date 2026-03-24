@@ -17,6 +17,11 @@
 //< A Virtual Machine main-include-vm
 //> Scanning on Demand repl
 
+#include "memory.h"
+
+void initAllocator(size_t size);
+void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+
 static void repl() {
   char line[1024];
   for (;;) {
@@ -80,19 +85,19 @@ static void runFile(const char* path) {
 
 int main(int argc, const char* argv[]) {
   initVM();
+  initAllocator(1024 * 1024); 
+
   Chunk chunk;
   initChunk(&chunk);
 
-  for (int i = 0; i < 256; i++) {
-    addConstant(&chunk, (double)i);
-  }
+  int constant = addConstant(&chunk, 1.2);
+  writeChunk(&chunk, OP_CONSTANT, 10);
+  writeChunk(&chunk, constant, 10);
+  writeChunk(&chunk, OP_RETURN, 20);
 
-  writeConstant(&chunk, 999.9, 123);
-  writeChunk(&chunk, OP_RETURN, 123);
+  disassembleChunk(&chunk, "test chunk");
 
-  disassembleChunk(&chunk, "test long constant");
   freeChunk(&chunk);
-  return 0;
 
 //< A Virtual Machine main-init-vm
 /* Chunks of Bytecode main-chunk < Scanning on Demand args
