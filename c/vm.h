@@ -78,8 +78,18 @@ typedef struct {
   int grayCount;
   int grayCapacity;
   Obj** grayStack;
+
+  int stackCapacity;
 //< Garbage Collection vm-gray-stack
 } VM;
+
+// typedef struct {
+//   Chunk* chunk;
+//   uint8_t* ip;
+//   Value* stack;
+//   Value* stackTop;
+//   int stackCapacity;
+// } VM;
 
 //> interpret-result
 typedef enum {

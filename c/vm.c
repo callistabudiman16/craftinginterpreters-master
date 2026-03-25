@@ -96,8 +96,9 @@ static void defineNative(const char* name, NativeFn function) {
 //< Calls and Functions define-native
 
 void initVM() {
-//> call-reset-stack
-  resetStack();
+  vm.stackCapacity = 8;
+  //vm.stack = (Value*)malloc(sizeof(Value) * vm.stackCapacity);
+  vm.stackTop = vm.stack;
 //< call-reset-stack
 //> Strings init-objects-root
   vm.objects = NULL;
@@ -145,9 +146,17 @@ void freeVM() {
 //> Strings call-free-objects
   freeObjects();
 //< Strings call-free-objects
+  free(vm.stack);
 }
 //> push
 void push(Value value) {
+    if ((vm.stackTop - vm.stack) >= vm.stackCapacity) {
+    int oldCapacity = vm.stackCapacity;
+    vm.stackCapacity *= 2;
+    //vm.stack = (Value*)realloc(vm.stack, sizeof(Value) * vm.stackCapacity);
+    vm.stackTop = vm.stack + oldCapacity;
+  }
+
   *vm.stackTop = value;
   vm.stackTop++;
 }
@@ -436,13 +445,8 @@ static InterpretResult run() {
 //> Types of Values binary-op
 #define BINARY_OP(valueType, op) \
     do { \
-      if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
-        runtimeError("Operands must be numbers."); \
-        return INTERPRET_RUNTIME_ERROR; \
-      } \
-      double b = AS_NUMBER(pop()); \
-      double a = AS_NUMBER(pop()); \
-      push(valueType(a op b)); \
+      vm.stackTop[-2] = vm.stackTop[-2] op vm.stackTop[-1]; \
+      vm.stackTop--; \
     } while (false)
 //< Types of Values binary-op
 
@@ -644,9 +648,9 @@ static InterpretResult run() {
       case OP_MULTIPLY: BINARY_OP(*); break;
       case OP_DIVIDE:   BINARY_OP(/); break;
 */
-/* A Virtual Machine op-negate < Types of Values op-negate
-      case OP_NEGATE:   push(-pop()); break;
-*/
+
+      case OP_NEGATE:   vm.stackTop[-1] = -vm.stackTop[-1];; break;
+
 /* Types of Values op-arithmetic < Strings add-strings
       case OP_ADD:      BINARY_OP(NUMBER_VAL, +); break;
 */
@@ -677,13 +681,13 @@ static InterpretResult run() {
         break;
 //< Types of Values op-not
 //> Types of Values op-negate
-      case OP_NEGATE:
-        if (!IS_NUMBER(peek(0))) {
-          runtimeError("Operand must be a number.");
-          return INTERPRET_RUNTIME_ERROR;
-        }
-        push(NUMBER_VAL(-AS_NUMBER(pop())));
-        break;
+      // case OP_NEGATE:
+      //   if (!IS_NUMBER(peek(0))) {
+      //     runtimeError("Operand must be a number.");
+      //     return INTERPRET_RUNTIME_ERROR;
+      //   }
+      //   push(NUMBER_VAL(-AS_NUMBER(pop())));
+      //   break;
 //< Types of Values op-negate
 //> Global Variables interpret-print
       case OP_PRINT: {
