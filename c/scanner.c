@@ -248,6 +248,9 @@ Token scanToken() {
 //> scan-string
     case '"': return string();
 //< scan-string
+
+    case '?': return makeToken(TOKEN_QUESTION);
+    case ':': return makeToken(TOKEN_COLON);
   }
 //< scan-char
 

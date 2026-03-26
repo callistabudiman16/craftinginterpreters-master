@@ -24,6 +24,7 @@
 #include "memory.h"
 //< Strings vm-include-object-memory
 #include "vm.h"
+#include <stdlib.h>
 
 VM vm; // [one]
 //> Calls and Functions clock-native
@@ -146,7 +147,7 @@ void freeVM() {
 //> Strings call-free-objects
   freeObjects();
 //< Strings call-free-objects
-  free(vm.stack);
+  //free(vm.stack);
 }
 //> push
 void push(Value value) {

@@ -1,0 +1,104 @@
+expression()
+→ parsePrecedence(PREC_ASSIGNMENT)
+
+CALL A: parsePrecedence(PREC_ASSIGNMENT)
+  advance() → '('
+  prefix = grouping → grouping()
+
+grouping()
+  calls expression()
+
+expression()
+→ parsePrecedence(PREC_ASSIGNMENT)
+
+CALL B: parsePrecedence(PREC_ASSIGNMENT)
+  advance() → '-'
+  prefix = unary → unary()
+
+unary()
+  operator = '-'
+  calls parsePrecedence(PREC_UNARY)
+
+CALL C: parsePrecedence(PREC_UNARY)
+  advance() → '1'
+  prefix = number → number()
+    emits constant 1
+  return to unary()
+
+unary()
+  emits NEGATE
+  return to CALL B
+
+CALL B continues:
+  sees '+'
+  advance()
+  infix = binary → binary()
+
+binary('+')
+  precedence = PREC_TERM
+  calls parsePrecedence(PREC_FACTOR)
+
+CALL D: parsePrecedence(PREC_FACTOR)
+  advance() → '2'
+  prefix = number → number()
+    emits constant 2
+  return to binary()
+
+binary()
+  emits ADD
+  return to CALL B
+
+grouping()
+  consume ')'
+  return to CALL A
+
+CALL A continues:
+  sees '*'
+  advance()
+  infix = binary → binary()
+
+binary('*')
+  precedence = PREC_FACTOR
+  calls parsePrecedence(PREC_UNARY)
+
+CALL E: parsePrecedence(PREC_UNARY)
+  advance() → '3'
+  prefix = number → number()
+    emits constant 3
+  return to binary()
+
+binary()
+  emits MULTIPLY
+  return to CALL A
+
+CALL A continues:
+  sees '-'
+  advance()
+  infix = binary → binary()
+
+binary('-')
+  precedence = PREC_TERM
+  calls parsePrecedence(PREC_FACTOR)
+
+CALL F: parsePrecedence(PREC_FACTOR)
+  advance() → '-'
+  prefix = unary → unary()
+
+unary()
+  calls parsePrecedence(PREC_UNARY)
+
+CALL G: parsePrecedence(PREC_UNARY)
+  advance() → '4'
+  prefix = number → number()
+    emits constant 4
+  return to unary()
+
+unary()
+  emits NEGATE
+  return to CALL F
+
+binary()
+  emits SUBTRACT
+  return to CALL A
+
+CALL A ends (EOF reached)

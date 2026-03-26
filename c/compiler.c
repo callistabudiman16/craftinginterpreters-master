@@ -35,7 +35,8 @@ typedef struct {
 
 typedef enum {
   PREC_NONE,
-  PREC_ASSIGNMENT,  // =
+  PREC_ASSIGNMENT, 
+  PREC_CONDITIONAL, // =
   PREC_OR,          // or
   PREC_AND,         // and
   PREC_EQUALITY,    // == !=
@@ -400,7 +401,7 @@ static void endScope() {
 }
 //< Local Variables end-scope
 //> Compiling Expressions forward-declarations
-
+static void conditional(bool canAssign);
 static void expression();
 //> Global Variables forward-declarations
 static void statement();
@@ -594,6 +595,18 @@ static void and_(bool canAssign) {
 }
 //< Jumping Back and Forth and
 //> Compiling Expressions binary
+
+static void conditional(bool canAssign) {
+  // Parse the "then" branch.
+  expression();
+
+  consume(TOKEN_COLON, "Expect ':' after then branch of conditional expression.");
+
+  // Parse the "else" branch.
+  // Use the same precedence to make ?: right-associative.
+  parsePrecedence(PREC_CONDITIONAL);
+}
+
 /* Compiling Expressions binary < Global Variables binary
 static void binary() {
 */
@@ -884,6 +897,9 @@ ParseRule rules[] = {
 /* Compiling Expressions rules < Types of Values table-not
   [TOKEN_BANG]          = {NULL,     NULL,   PREC_NONE},
 */
+
+  [TOKEN_QUESTION]      = {NULL,        conditional, PREC_CONDITIONAL},
+  [TOKEN_COLON]         = {NULL,        NULL,        PREC_NONE},  
 //> Types of Values table-not
   [TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
 //< Types of Values table-not
