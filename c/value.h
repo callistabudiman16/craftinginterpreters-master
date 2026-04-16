@@ -31,6 +31,13 @@ typedef struct ObjString ObjString;
 #define TAG_TRUE  3 // 11.
 //< tags
 
+typedef enum {
+  VAL_BOOL,
+  VAL_NIL,
+  VAL_NUMBER,
+  VAL_OBJ
+} ValueType;
+
 typedef uint64_t Value;
 //> is-number
 
