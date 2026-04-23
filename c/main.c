@@ -58,10 +58,8 @@ static void runFile(const char* path) {
 }
 
 int main(int argc, const char* argv[]) {
+  initAllocator(1024 * 1024);
   initVM();
-
-
-  //initAllocator(1024 * 1024);
 
   if (argc == 1) {
     repl();

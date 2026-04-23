@@ -33,6 +33,11 @@ typedef struct {
 } Parser;
 //> precedence
 
+typedef struct {
+  Token name;
+  bool isMutable;
+} GlobalInfo;
+
 typedef enum {
   PREC_NONE,
   PREC_ASSIGNMENT, 
@@ -72,6 +77,7 @@ typedef struct {
   int depth;
 //> Closures is-captured-field
   bool isCaptured;
+  bool isMutable;
 //< Closures is-captured-field
 } Local;
 //< Local Variables local-struct
@@ -113,6 +119,8 @@ typedef struct Compiler {
   Upvalue upvalues[UINT8_COUNT];
 //< Closures upvalues-array
   int scopeDepth;
+  GlobalInfo globals[UINT8_COUNT];
+  int globalCount;
 } Compiler;
 //< Local Variables compiler-struct
 //> Methods and Initializers class-compiler-struct
@@ -141,6 +149,9 @@ static Chunk* currentChunk() {
   return compilingChunk;
 }
 */
+
+static void addGlobal(Token name, bool isMutable);
+static bool resolveGlobalMutability(Token* name);
 //> Calls and Functions current-chunk
 
 static Chunk* currentChunk() {
@@ -309,6 +320,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
   compiler->function = newFunction();
 //< Calls and Functions init-function
   current = compiler;
+  compiler->globalCount = 0;
 //> Calls and Functions init-function-name
   if (type != TYPE_SCRIPT) {
     current->function->name = copyString(parser.previous.start,
@@ -320,7 +332,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
   Local* local = &current->locals[current->localCount++];
   local->depth = 0;
 //> Closures init-zero-local-is-captured
-  local->isCaptured = false;
+  local->isMutable = false;
 //< Closures init-zero-local-is-captured
 /* Calls and Functions init-function-slot < Methods and Initializers slot-zero
   local->name.start = "";
@@ -489,7 +501,7 @@ static int resolveUpvalue(Compiler* compiler, Token* name) {
 }
 //< Closures resolve-upvalue
 //> Local Variables add-local
-static void addLocal(Token name) {
+static void addLocal(Token name, bool isMutable) {
 //> too-many-locals
   if (current->localCount == UINT8_COUNT) {
     error("Too many local variables in function.");
@@ -507,11 +519,12 @@ static void addLocal(Token name) {
 //< declare-undefined
 //> Closures init-is-captured
   local->isCaptured = false;
+  local->isMutable = isMutable;
 //< Closures init-is-captured
 }
 //< Local Variables add-local
 //> Local Variables declare-variable
-static void declareVariable() {
+static void declareVariable(bool isMutable) {
   if (current->scopeDepth == 0) return;
 
   Token* name = &parser.previous;
@@ -528,16 +541,20 @@ static void declareVariable() {
   }
 
 //< existing-in-scope
-  addLocal(*name);
+  addLocal(*name, isMutable);
 }
 //< Local Variables declare-variable
 //> Global Variables parse-variable
-static uint8_t parseVariable(const char* errorMessage) {
+static uint8_t parseVariable(const char* errorMessage, bool isMutable) {
   consume(TOKEN_IDENTIFIER, errorMessage);
 //> Local Variables parse-local
 
-  declareVariable();
+  declareVariable(isMutable);
   if (current->scopeDepth > 0) return 0;
+
+  if (current->scopeDepth == 0) {
+  addGlobal(parser.previous, isMutable);
+}
 
 //< Local Variables parse-local
   return identifierConstant(&parser.previous);
@@ -727,6 +744,17 @@ static void string(bool canAssign) {
 /* Global Variables read-named-variable < Global Variables named-variable-signature
 static void namedVariable(Token name) {
 */
+
+static bool resolveUpvalueMutability(Compiler* compiler, Token* name) {
+  if (compiler->enclosing == NULL) return true;
+
+  int local = resolveLocal(compiler->enclosing, name);
+  if (local != -1) {
+    return compiler->enclosing->locals[local].isMutable;
+  }
+
+  return resolveUpvalueMutability(compiler->enclosing, name);
+}
 //> Global Variables named-variable-signature
 static void namedVariable(Token name, bool canAssign) {
 //< Global Variables named-variable-signature
@@ -737,18 +765,23 @@ static void namedVariable(Token name, bool canAssign) {
 //> Local Variables named-local
   uint8_t getOp, setOp;
   int arg = resolveLocal(current, &name);
+  bool isMutable;
+
   if (arg != -1) {
     getOp = OP_GET_LOCAL;
     setOp = OP_SET_LOCAL;
+    isMutable = current->locals[arg].isMutable;
 //> Closures named-variable-upvalue
   } else if ((arg = resolveUpvalue(current, &name)) != -1) {
     getOp = OP_GET_UPVALUE;
     setOp = OP_SET_UPVALUE;
+    isMutable = resolveUpvalueMutability(current, &name);
 //< Closures named-variable-upvalue
   } else {
     arg = identifierConstant(&name);
     getOp = OP_GET_GLOBAL;
     setOp = OP_SET_GLOBAL;
+    isMutable = resolveGlobalMutability(&name);
   }
 //< Local Variables named-local
 /* Global Variables read-named-variable < Global Variables named-variable
@@ -761,6 +794,10 @@ static void namedVariable(Token name, bool canAssign) {
 */
 //> named-variable-can-assign
   if (canAssign && match(TOKEN_EQUAL)) {
+
+    if (!isMutable) {
+      error("Can't assign to an immutable variable.");
+    }
 //< named-variable-can-assign
     expression();
 /* Global Variables named-variable < Local Variables emit-set
@@ -986,6 +1023,7 @@ ParseRule rules[] = {
 //> Types of Values table-true
   [TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
 //< Types of Values table-true
+  [TOKEN_VAL] = {NULL, NULL, PREC_NONE},
   [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
   [TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
   [TOKEN_ERROR]         = {NULL,     NULL,   PREC_NONE},
@@ -1072,7 +1110,7 @@ static void function(FunctionType type) {
       if (current->function->arity > 255) {
         errorAtCurrent("Can't have more than 255 parameters.");
       }
-      uint8_t constant = parseVariable("Expect parameter name.");
+      uint8_t constant = parseVariable("Expect parameter name.", true);
       defineVariable(constant);
     } while (match(TOKEN_COMMA));
   }
@@ -1130,7 +1168,7 @@ static void classDeclaration() {
   Token className = parser.previous;
 //< Methods and Initializers class-name
   uint8_t nameConstant = identifierConstant(&parser.previous);
-  declareVariable();
+  declareVariable(true);
 
   emitBytes(OP_CLASS, nameConstant);
   defineVariable(nameConstant);
@@ -1157,7 +1195,7 @@ static void classDeclaration() {
 //< inherit-self
 //> superclass-variable
     beginScope();
-    addLocal(syntheticToken("super"));
+    addLocal(syntheticToken("super"), false);
     defineVariable(0);
     
 //< superclass-variable
@@ -1196,19 +1234,22 @@ static void classDeclaration() {
 //< Classes and Instances class-declaration
 //> Calls and Functions fun-declaration
 static void funDeclaration() {
-  uint8_t global = parseVariable("Expect function name.");
+  uint8_t global = parseVariable("Expect function name.", true);
   markInitialized();
   function(TYPE_FUNCTION);
   defineVariable(global);
 }
 //< Calls and Functions fun-declaration
 //> Global Variables var-declaration
-static void varDeclaration() {
-  uint8_t global = parseVariable("Expect variable name.");
+static void varDeclaration(bool isMutable) {
+  uint8_t global = parseVariable("Expect variable name.", isMutable);
 
   if (match(TOKEN_EQUAL)) {
     expression();
   } else {
+    if (!isMutable) {
+      error("Immutable variables must have an initializer.");
+    }
     emitByte(OP_NIL);
   }
   consume(TOKEN_SEMICOLON,
@@ -1237,7 +1278,7 @@ static void forStatement() {
   if (match(TOKEN_SEMICOLON)) {
     // No initializer.
   } else if (match(TOKEN_VAR)) {
-    varDeclaration();
+    varDeclaration(true);
   } else {
     expressionStatement();
   }
@@ -1385,6 +1426,7 @@ static void synchronize() {
       case TOKEN_WHILE:
       case TOKEN_PRINT:
       case TOKEN_RETURN:
+      case TOKEN_VAL:
         return;
 
       default:
@@ -1398,8 +1440,8 @@ static void synchronize() {
 //> Global Variables declaration
 static void declaration() {
 //> Classes and Instances match-class
-  if (match(TOKEN_CLASS)) {
-    classDeclaration();
+  if (match(TOKEN_VAL)) {
+    varDeclaration(false);
 /* Calls and Functions match-fun < Classes and Instances match-class
   if (match(TOKEN_FUN)) {
 */
@@ -1413,7 +1455,7 @@ static void declaration() {
   } else if (match(TOKEN_VAR)) {
 //< Calls and Functions match-fun
 //> match-var
-    varDeclaration();
+    varDeclaration(true);
   } else {
     statement();
   }
@@ -1538,3 +1580,18 @@ void markCompilerRoots() {
   }
 }
 //< Garbage Collection mark-compiler-roots
+
+static void addGlobal(Token name, bool isMutable) {
+  GlobalInfo* global = &current->globals[current->globalCount++];
+  global->name = name;
+  global->isMutable = isMutable;
+}
+
+static bool resolveGlobalMutability(Token* name) {
+  for (int i = current->globalCount - 1; i >= 0; i--) {
+    if (identifiersEqual(name, &current->globals[i].name)) {
+      return current->globals[i].isMutable;
+    }
+  }
+  return true;
+}
