@@ -46,6 +46,7 @@ typedef enum {
 //< Classes and Instances property-ops
 //> Superclasses get-super-op
   OP_GET_SUPER,
+  OP_DUP,
 //< Superclasses get-super-op
 //> Types of Values comparison-ops
   OP_EQUAL,
