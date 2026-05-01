@@ -243,42 +243,48 @@ static bool call(ObjFunction* function, int argCount) {
 */
 //> Calls and Functions call
 //> Closures call-signature
-static bool call(ObjClosure* closure, int argCount) {
-//< Closures call-signature
-/* Calls and Functions check-arity < Closures check-arity
+
+
+static bool callFunction(ObjFunction* function, int argCount) {
   if (argCount != function->arity) {
     runtimeError("Expected %d arguments but got %d.",
         function->arity, argCount);
-*/
-//> Closures check-arity
-  if (argCount != closure->function->arity) {
-    runtimeError("Expected %d arguments but got %d.",
-        closure->function->arity, argCount);
-//< Closures check-arity
-//> check-arity
     return false;
   }
 
-//< check-arity
-//> check-overflow
   if (vm.frameCount == FRAMES_MAX) {
     runtimeError("Stack overflow.");
     return false;
   }
 
-//< check-overflow
   CallFrame* frame = &vm.frames[vm.frameCount++];
-/* Calls and Functions call < Closures call-init-closure
   frame->function = function;
+  frame->closure = NULL;
   frame->ip = function->chunk.code;
-*/
-//> Closures call-init-closure
-  frame->closure = closure;
-  frame->ip = closure->function->chunk.code;
-//< Closures call-init-closure
   frame->slots = vm.stackTop - argCount - 1;
   return true;
 }
+
+static bool callClosure(ObjClosure* closure, int argCount) {
+  if (argCount != closure->function->arity) {
+    runtimeError("Expected %d arguments but got %d.",
+        closure->function->arity, argCount);
+    return false;
+  }
+
+  if (vm.frameCount == FRAMES_MAX) {
+    runtimeError("Stack overflow.");
+    return false;
+  }
+
+  CallFrame* frame = &vm.frames[vm.frameCount++];
+  frame->function = closure->function;
+  frame->closure = closure;
+  frame->ip = closure->function->chunk.code;
+  frame->slots = vm.stackTop - argCount - 1;
+  return true;
+}
+
 //< Calls and Functions call
 //> Calls and Functions call-value
 static bool callValue(Value callee, int argCount) {
@@ -317,10 +323,9 @@ static bool callValue(Value callee, int argCount) {
       case OBJ_CLOSURE:
         return call(AS_CLOSURE(callee), argCount);
 //< Closures call-value-closure
-/* Calls and Functions call-value < Closures call-value-closure
       case OBJ_FUNCTION: // [switch]
         return call(AS_FUNCTION(callee), argCount);
-*/
+
 //> call-native
       case OBJ_NATIVE: {
         ObjNative* nativeObj = AS_NATIVE_OBJ(callee);
@@ -840,20 +845,22 @@ static InterpretResult run() {
 //> Closures interpret-closure
       case OP_CLOSURE: {
         ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
-        ObjClosure* closure = newClosure(function);
-        push(OBJ_VAL(closure));
-//> interpret-capture-upvalues
-        for (int i = 0; i < closure->upvalueCount; i++) {
-          uint8_t isLocal = READ_BYTE();
-          uint8_t index = READ_BYTE();
-          if (isLocal) {
-            closure->upvalues[i] =
-                captureUpvalue(frame->slots + index);
-          } else {
-            closure->upvalues[i] = frame->closure->upvalues[index];
+
+        if (function->upvalueCount == 0) {
+          push(OBJ_VAL(function));
+        } else {
+          ObjClosure* closure = newClosure(function);
+         push(OBJ_VAL(closure));
+          for (int i = 0; i < closure->upvalueCount; i++) {
+            uint8_t isLocal = READ_BYTE();
+            uint8_t index = READ_BYTE();
+            if (isLocal) {
+              closure->upvalues[i] = captureUpvalue(frame->slots + index);
+            } else {
+              closure->upvalues[i] = frame->closure->upvalues[index];
+            }
           }
-        }
-//< interpret-capture-upvalues
+       }
         break;
       }
 //< Closures interpret-closure
@@ -987,10 +994,14 @@ InterpretResult interpret(const char* source) {
   call(function, 0);
 */
 //> Closures interpret
+  if (function->upvalueCount == 0) {
+  callFunction(function, 0);
+} else {
   ObjClosure* closure = newClosure(function);
   pop();
   push(OBJ_VAL(closure));
-  call(closure, 0);
+  callClosure(closure, 0);
+}
 //< Closures interpret
 //< Scanning on Demand vm-interpret-c
 //> Compiling Expressions interpret-chunk
