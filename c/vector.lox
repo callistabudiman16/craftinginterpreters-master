@@ -1,0 +1,21 @@
+fun Vector(x, y) {
+  fun dispatch(method, other) {
+    if (method == "x") return x;
+    if (method == "y") return y;
+
+    if (method == "add") {
+      return Vector(
+        x + other("x", nil),
+        y + other("y", nil)
+      );
+    }
+
+    if (method == "toString") {
+      return "(" + x + ", " + y + ")";
+    }
+
+    return "Unknown method";
+  }
+
+  return dispatch;
+}
