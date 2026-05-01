@@ -150,9 +150,9 @@ static void runtimeError(const char* format, ...) {
 }
 //< Types of Values runtime-error
 //> Calls and Functions define-native
-static void defineNative(const char* name, NativeFn function) {
+static void defineNative(const char* name, NativeFn function, int arity) {
   push(OBJ_VAL(copyString(name, (int)strlen(name))));
-  push(OBJ_VAL(newNative(function)));
+  push(OBJ_VAL(newNative(function, arity)));
   tableSet(&vm.globals, vm.stack[0], vm.stack[1]);
   pop();
   pop();
@@ -193,9 +193,9 @@ void initVM() {
 //< Methods and Initializers init-init-string
 //> Calls and Functions define-native-clock
 
-  defineNative("clock", clockNative);
-  defineNative("sqrt", sqrtNative);
-  defineNative("type", typeNative);
+  defineNative("clock", clockNative, 0);
+  defineNative("sqrt", sqrtNative, 1);
+  defineNative("type", typeNative, 1);
 //< Calls and Functions define-native-clock
 }
 
@@ -323,11 +323,18 @@ static bool callValue(Value callee, int argCount) {
 */
 //> call-native
       case OBJ_NATIVE: {
-        NativeFn native = AS_NATIVE(callee);
-        Value result;
-        if (!native(argCount, vm.stackTop - argCount, &result)) {
+        ObjNative* nativeObj = AS_NATIVE_OBJ(callee);
+        if (argCount != nativeObj->arity) {
+          runtimeError("Expected %d arguments but got %d.",
+                       nativeObj->arity, argCount);
           return false;
         }
+
+        Value result;
+        if (!nativeObj->function(argCount, vm.stackTop - argCount, &result)) {
+          return false;
+        }
+
         vm.stackTop -= argCount + 1;
         push(result);
         return true;

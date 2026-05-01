@@ -62,6 +62,8 @@
 //< as-string
 //> obj-type
 
+#define AS_NATIVE_OBJ(value) ((ObjNative*)AS_OBJ(value))
+
 typedef enum {
 //> Methods and Initializers obj-type-bound-method
   OBJ_BOUND_METHOD,
@@ -115,6 +117,7 @@ typedef bool (*NativeFn)(int argCount, Value* args, Value* result);
 
 typedef struct {
   Obj obj;
+  int arity;
   NativeFn function;
 } ObjNative;
 
@@ -194,7 +197,7 @@ ObjFunction* newFunction();
 ObjInstance* newInstance(ObjClass* klass);
 //< Classes and Instances new-instance-h
 //> Calls and Functions new-native-h
-ObjNative* newNative(NativeFn function);
+ObjNative* newNative(NativeFn function, int arity);
 //< Calls and Functions new-native-h
 //> take-string-h
 ObjString* takeString(char* chars, int length);
