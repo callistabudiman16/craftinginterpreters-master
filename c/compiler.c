@@ -1368,8 +1368,10 @@ static void forStatement() {
   } else {
     loop.continueTarget = loopStart;
   }
-
+  
+  beginScope();
   statement();
+  endScope();
   emitLoop(loopStart);
 
   if (exitJump != -1) {
