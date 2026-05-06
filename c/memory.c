@@ -445,3 +445,18 @@ void freeObjects() {
 //< Garbage Collection free-gray-stack
 }
 //< Strings free-objects
+
+
+void retainObject(Obj* object) {
+  if (object == NULL) return;
+  object->refCount++;
+}
+
+void releaseObject(Obj* object) {
+  if (object == NULL) return;
+  object->refCount--;
+
+  if (object->refCount == 0) {
+    freeObject(object);
+  }
+}

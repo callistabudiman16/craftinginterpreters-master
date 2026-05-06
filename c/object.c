@@ -21,6 +21,7 @@ static Obj* allocateObject(size_t size, ObjType type) {
   object->type = type;
 //> Garbage Collection init-is-marked
   object->isMarked = false;
+  object->refCount = 0;
 //< Garbage Collection init-is-marked
 //> add-to-list
   

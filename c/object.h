@@ -97,6 +97,7 @@ struct Obj {
 //< Garbage Collection is-marked-field
 //> next-field
   struct Obj* next;
+  int refCount;
 //< next-field
 };
 //> Calls and Functions obj-function
