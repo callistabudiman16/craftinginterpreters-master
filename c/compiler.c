@@ -163,6 +163,7 @@ static void addGlobal(Token name, bool isMutable);
 static bool resolveGlobalMutability(Token* name);
 static void switchStatement();
 static void continueStatement();
+static void deleteStatement();
 
 //> Calls and Functions current-chunk
 
@@ -216,6 +217,8 @@ static void advance() {
     errorAtCurrent(parser.current.start);
   }
 }
+
+
 //< Compiling Expressions advance
 //> Compiling Expressions consume
 static void consume(TokenType type, const char* message) {
@@ -979,6 +982,7 @@ ParseRule rules[] = {
 /* Compiling Expressions rules < Classes and Instances table-dot
   [TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
 */
+  [TOKEN_DELETE] = {NULL, NULL, PREC_NONE},
 //> Classes and Instances table-dot
   [TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
 //< Classes and Instances table-dot
@@ -1505,6 +1509,19 @@ static void printStatement() {
   consume(TOKEN_SEMICOLON, "Expect ';' after value.");
   emitByte(OP_PRINT);
 }
+
+static void deleteStatement() {
+  consume(TOKEN_IDENTIFIER, "Expect object name after 'delete'.");
+  namedVariable(parser.previous, false);
+
+  consume(TOKEN_DOT, "Expect '.' after object in delete statement.");
+  consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+  uint8_t name = identifierConstant(&parser.previous);
+
+  consume(TOKEN_SEMICOLON, "Expect ';' after delete statement.");
+
+  emitBytes(OP_DELETE_PROPERTY, name);
+}
 //< Global Variables print-statement
 //> Calls and Functions return-statement
 static void returnStatement() {
@@ -1576,6 +1593,7 @@ static void synchronize() {
       case TOKEN_CASE:
       case TOKEN_DEFAULT:
       case TOKEN_CONTINUE:
+      case TOKEN_DELETE:
         return;
 
       default:
@@ -1649,7 +1667,10 @@ static void statement() {
 //> parse-expressions-statement
   }  else if (match(TOKEN_SWITCH)) {
       switchStatement();
-  }  else if (match(TOKEN_CONTINUE)) {
+  } else if (match(TOKEN_DELETE)) {
+    deleteStatement();
+  
+  } else if (match(TOKEN_CONTINUE)) {
   continueStatement();
   }
   else {

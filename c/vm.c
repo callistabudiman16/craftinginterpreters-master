@@ -635,6 +635,47 @@ static InterpretResult run() {
       }
 //< Closures interpret-set-upvalue
 //> Classes and Instances interpret-get-property
+      case OP_GET_PROPERTY: {
+        if (!IS_INSTANCE(peek(0))) {
+          frame->ip = ip;
+          runtimeError("Only instances have properties.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(peek(0));
+        ObjString* name = READ_STRING();
+
+        Value value;
+        if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
+          pop(); // Instance.
+          push(value);
+          break;
+        }
+
+        if (bindMethod(instance->klass, name)) {
+          break;
+        }
+
+        pop(); // Instance.
+        push(NIL_VAL);
+        break;
+      }
+
+      case OP_SET_PROPERTY: {
+        if (!IS_INSTANCE(peek(1))) {
+          frame->ip = ip;
+          runtimeError("Only instances have fields.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(peek(1));
+        tableSet(&instance->fields, OBJ_VAL(READ_STRING()), peek(0));
+        Value value = pop();
+        pop();
+        push(value);
+        break;
+      }
+
       case OP_GET_PROPERTY_DYNAMIC: {
     if (!IS_STRING(peek(0))) {
       frame->ip = ip;
@@ -691,6 +732,23 @@ static InterpretResult run() {
       push(value);
       break;
     }
+
+    case OP_DELETE_PROPERTY: {
+      ObjString* name = READ_STRING();
+
+      if (!IS_INSTANCE(peek(0))) {
+       frame->ip = ip;
+       runtimeError("Only instances have fields.");
+       return INTERPRET_RUNTIME_ERROR;
+     }
+
+      ObjInstance* instance = AS_INSTANCE(peek(0));
+      tableDelete(&instance->fields, OBJ_VAL(name));
+
+      pop(); // Instance.
+      push(NIL_VAL);
+      break;
+  }
 //< Classes and Instances interpret-set-property
 //> Superclasses interpret-get-super
       case OP_GET_SUPER: {

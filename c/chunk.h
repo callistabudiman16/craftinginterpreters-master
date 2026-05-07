@@ -45,6 +45,7 @@ typedef enum {
   OP_SET_PROPERTY,
   OP_GET_PROPERTY_DYNAMIC,
   OP_SET_PROPERTY_DYNAMIC,
+  OP_DELETE_PROPERTY,
 //< Classes and Instances property-ops
 //> Superclasses get-super-op
   OP_GET_SUPER,

@@ -148,6 +148,9 @@ int disassembleInstruction(Chunk* chunk, int offset) {
       return simpleInstruction("OP_GET_PROPERTY_DYNAMIC", offset);
     case OP_SET_PROPERTY_DYNAMIC:
       return simpleInstruction("OP_SET_PROPERTY_DYNAMIC", offset);
+
+    case OP_DELETE_PROPERTY:
+      return constantInstruction("OP_DELETE_PROPERTY", chunk, offset);
 //< Classes and Instances disassemble-property-ops
 //> Superclasses disassemble-get-super
     case OP_GET_SUPER:
