@@ -1,0 +1,6 @@
+class Bag {}
+
+var bag = Bag();
+print bag.name;
+bag.name = "Natasha";
+print bag.name;

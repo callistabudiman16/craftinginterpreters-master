@@ -1584,7 +1584,9 @@ static void synchronize() {
 //> Global Variables declaration
 static void declaration() {
 //> Classes and Instances match-class
-  if (match(TOKEN_VAL)) {
+ if (match(TOKEN_CLASS)) {
+    classDeclaration();
+ }  else if (match(TOKEN_VAL)) {
     varDeclaration(false);
 /* Calls and Functions match-fun < Classes and Instances match-class
   if (match(TOKEN_FUN)) {

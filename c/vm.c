@@ -296,7 +296,7 @@ static bool callValue(Value callee, int argCount) {
 //> store-receiver
         vm.stackTop[-argCount - 1] = bound->receiver;
 //< store-receiver
-        return call(bound->method, argCount);
+        return callClosure(bound->method, argCount);
       }
 //< Methods and Initializers call-bound-method
 //> Classes and Instances call-class
@@ -307,7 +307,7 @@ static bool callValue(Value callee, int argCount) {
         Value initializer;
         if (tableGet(&klass->methods, OBJ_VAL(vm.initString),
                      &initializer)) {
-          return call(AS_CLOSURE(initializer), argCount);
+          return callClosure(AS_CLOSURE(initializer), argCount);
 //> no-init-arity-error
         } else if (argCount != 0) {
           runtimeError("Expected 0 arguments but got %d.",
@@ -321,10 +321,10 @@ static bool callValue(Value callee, int argCount) {
 //< Classes and Instances call-class
 //> Closures call-value-closure
       case OBJ_CLOSURE:
-        return call(AS_CLOSURE(callee), argCount);
+        return callClosure(AS_CLOSURE(callee), argCount);
 //< Closures call-value-closure
       case OBJ_FUNCTION: // [switch]
-        return call(AS_FUNCTION(callee), argCount);
+        return callFunction(AS_FUNCTION(callee), argCount);
 
 //> call-native
       case OBJ_NATIVE: {
@@ -361,7 +361,7 @@ static bool invokeFromClass(ObjClass* klass, ObjString* name,
     runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
-  return call(AS_CLOSURE(method), argCount);
+  return callClosure(AS_CLOSURE(method), argCount);
 }
 //< Methods and Initializers invoke-from-class
 //> Methods and Initializers invoke
@@ -392,7 +392,6 @@ static bool invoke(ObjString* name, int argCount) {
 static bool bindMethod(ObjClass* klass, ObjString* name) {
   Value method;
   if (!tableGet(&klass->methods, OBJ_VAL(name), &method)) {
-    runtimeError("Undefined property '%s'.", name->chars);
     return false;
   }
 
@@ -662,10 +661,12 @@ static InterpretResult run() {
         return INTERPRET_RUNTIME_ERROR;
 */
 //> Methods and Initializers get-method
-        if (!bindMethod(instance->klass, name)) {
-          return INTERPRET_RUNTIME_ERROR;
+        if (bindMethod(instance->klass, name)) {
+          break;
         }
-        break;
+        pop();
+        push(NIL_VAL);
+        break;    
 //< Methods and Initializers get-method
       }
 //< Classes and Instances interpret-get-property
@@ -845,22 +846,17 @@ static InterpretResult run() {
 //> Closures interpret-closure
       case OP_CLOSURE: {
         ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
-
-        if (function->upvalueCount == 0) {
-          push(OBJ_VAL(function));
-        } else {
-          ObjClosure* closure = newClosure(function);
-         push(OBJ_VAL(closure));
-          for (int i = 0; i < closure->upvalueCount; i++) {
-            uint8_t isLocal = READ_BYTE();
-            uint8_t index = READ_BYTE();
-            if (isLocal) {
-              closure->upvalues[i] = captureUpvalue(frame->slots + index);
-            } else {
-              closure->upvalues[i] = frame->closure->upvalues[index];
-            }
+        ObjClosure* closure = newClosure(function);
+        push(OBJ_VAL(closure));
+        for (int i = 0; i < closure->upvalueCount; i++) {
+          uint8_t isLocal = READ_BYTE();
+          uint8_t index = READ_BYTE();
+          if (isLocal) {
+            closure->upvalues[i] = captureUpvalue(frame->slots + index);
+          } else {
+            closure->upvalues[i] = frame->closure->upvalues[index];
           }
-       }
+        }
         break;
       }
 //< Closures interpret-closure
@@ -994,14 +990,10 @@ InterpretResult interpret(const char* source) {
   call(function, 0);
 */
 //> Closures interpret
-  if (function->upvalueCount == 0) {
-  callFunction(function, 0);
-} else {
   ObjClosure* closure = newClosure(function);
   pop();
   push(OBJ_VAL(closure));
   callClosure(closure, 0);
-}
 //< Closures interpret
 //< Scanning on Demand vm-interpret-c
 //> Compiling Expressions interpret-chunk
