@@ -635,58 +635,62 @@ static InterpretResult run() {
       }
 //< Closures interpret-set-upvalue
 //> Classes and Instances interpret-get-property
-      case OP_GET_PROPERTY: {
-//> get-not-instance
-        if (!IS_INSTANCE(peek(0))) {
-          frame->ip = ip;
-          runtimeError("Only instances have properties.");
-          return INTERPRET_RUNTIME_ERROR;
-        }
+      case OP_GET_PROPERTY_DYNAMIC: {
+    if (!IS_STRING(peek(0))) {
+      frame->ip = ip;
+      runtimeError("Property name must be a string.");
+      return INTERPRET_RUNTIME_ERROR;
+    }
 
-//< get-not-instance
-        ObjInstance* instance = AS_INSTANCE(peek(0));
-        ObjString* name = READ_STRING();
-        
-        Value value;
-        if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
-          pop(); // Instance.
-          push(value);
-          break;
-        }
-//> get-undefined
+    if (!IS_INSTANCE(peek(1))) {
+      frame->ip = ip;
+      runtimeError("Only instances have properties.");
+      return INTERPRET_RUNTIME_ERROR;
+    }
 
-//< get-undefined
-/* Classes and Instances get-undefined < Methods and Initializers get-method
-        runtimeError("Undefined property '%s'.", name->chars);
-        return INTERPRET_RUNTIME_ERROR;
-*/
-//> Methods and Initializers get-method
-        if (bindMethod(instance->klass, name)) {
-          break;
-        }
-        pop();
-        push(NIL_VAL);
-        break;    
-//< Methods and Initializers get-method
-      }
+    ObjString* name = AS_STRING(peek(0));
+    ObjInstance* instance = AS_INSTANCE(peek(1));
+
+    Value value;
+    if (tableGet(&instance->fields, OBJ_VAL(name), &value)) {
+     pop(); // name
+      pop(); // instance
+      push(value);
+     break;
+    }
+
+     pop(); // name
+     pop(); // instance
+     push(NIL_VAL);
+     break;
+}
 //< Classes and Instances interpret-get-property
 //> Classes and Instances interpret-set-property
-      case OP_SET_PROPERTY: {
-//> set-not-instance
-        if (!IS_INSTANCE(peek(1))) {
-          frame->ip = ip;
-          runtimeError("Only instances have fields.");
-          return INTERPRET_RUNTIME_ERROR;
-        }
+    case OP_SET_PROPERTY_DYNAMIC: {
+      if (!IS_STRING(peek(1))) {
+         frame->ip = ip;
+       runtimeError("Property name must be a string.");
+         return INTERPRET_RUNTIME_ERROR;
+       }
 
-//< set-not-instance
-        ObjInstance* instance = AS_INSTANCE(peek(1));
-        tableSet(&instance->fields, OBJ_VAL(READ_STRING()), peek(0));
-        Value value = pop();
-        pop();
-        push(value);
-        break;
-      }
+      if (!IS_INSTANCE(peek(2))) {
+        frame->ip = ip;
+        runtimeError("Only instances have fields.");
+        return INTERPRET_RUNTIME_ERROR;
+     }
+
+      Value value = peek(0);
+      ObjString* name = AS_STRING(peek(1));
+      ObjInstance* instance = AS_INSTANCE(peek(2));
+
+      tableSet(&instance->fields, OBJ_VAL(name), value);
+
+      pop(); // value
+      pop(); // name
+     pop(); // instance
+      push(value);
+      break;
+    }
 //< Classes and Instances interpret-set-property
 //> Superclasses interpret-get-super
       case OP_GET_SUPER: {

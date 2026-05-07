@@ -1,0 +1,7 @@
+class Bag {}
+
+var bag = Bag();
+var key = "name";
+
+bag[key] = "Natasha";
+print bag[key];

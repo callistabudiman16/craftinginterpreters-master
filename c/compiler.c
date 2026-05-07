@@ -231,6 +231,8 @@ static void consume(TokenType type, const char* message) {
 static bool check(TokenType type) {
   return parser.current.type == type;
 }
+
+
 //< Global Variables check
 //> Global Variables match
 static bool match(TokenType type) {
@@ -429,6 +431,7 @@ static void endScope() {
 //> Compiling Expressions forward-declarations
 static void conditional(bool canAssign);
 static void expression();
+static void subscript(bool canAssign);
 //> Global Variables forward-declarations
 static void statement();
 static void declaration();
@@ -968,9 +971,11 @@ ParseRule rules[] = {
   [TOKEN_LEFT_PAREN]    = {grouping, call,   PREC_CALL},
 //< Calls and Functions infix-left-paren
   [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
-  [TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE}, // [big]
+  [TOKEN_LEFT_BRACE]    = {NULL, NULL, PREC_CALL}, // [big]
   [TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
   [TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
+  [TOKEN_LEFT_BRACKET]  = {NULL, subscript, PREC_CALL},
+  [TOKEN_RIGHT_BRACKET] = {NULL, NULL, PREC_NONE},
 /* Compiling Expressions rules < Classes and Instances table-dot
   [TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
 */
@@ -1736,6 +1741,18 @@ static void addGlobal(Token name, bool isMutable) {
   GlobalInfo* global = &current->globals[current->globalCount++];
   global->name = name;
   global->isMutable = isMutable;
+}
+
+static void subscript(bool canAssign) {
+  expression();
+  consume(TOKEN_RIGHT_BRACKET, "Expect ']' after property name.");
+
+  if (canAssign && match(TOKEN_EQUAL)) {
+    expression();
+    emitByte(OP_SET_PROPERTY_DYNAMIC);
+  } else {
+    emitByte(OP_GET_PROPERTY_DYNAMIC);
+  }
 }
 
 static bool resolveGlobalMutability(Token* name) {
