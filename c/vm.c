@@ -92,6 +92,20 @@ static bool typeNative(int argCount, Value* args, Value* result) {
 }
 
 
+static bool callMethod(
+    ObjClosure* closure,
+    int argCount,
+    ObjClass* owner,
+    ObjString* methodName) {
+  if (!call(closure, argCount)) return false;
+
+  CallFrame* frame = &vm.frames[vm.frameCount - 1];
+  frame->owner = owner;
+  frame->methodName = methodName;
+
+  return true;
+}
+
 
 
 //< Calls and Functions clock-native
@@ -370,6 +384,28 @@ static bool invokeFromClass(ObjClass* klass, ObjString* name,
   }
   return callClosure(AS_CLOSURE(method), argCount);
 }
+
+static bool invokeBeta(ObjString* name, int argCount) {
+  Value receiver = peek(argCount);
+
+  if (!IS_INSTANCE(receiver)) {
+    runtimeError("Only instances have methods.");
+    return false;
+  }
+
+  ObjInstance* instance = AS_INSTANCE(receiver);
+
+  Value method;
+  ObjClass* owner;
+
+  if (!findTopDownMethod(instance->klass, instance->klass, name, &method, &owner)) {
+    runtimeError("Undefined property '%s'.", name->chars);
+    return false;
+  }
+
+  return call(AS_CLOSURE(method), argCount);
+}
+
 //< Methods and Initializers invoke-from-class
 //> Methods and Initializers invoke
 static bool invoke(ObjString* name, int argCount) {
@@ -407,6 +443,13 @@ static bool bindMethod(ObjClass* klass, ObjString* name) {
   pop();
   push(OBJ_VAL(bound));
   return true;
+}
+
+static ObjClass* topClass(ObjClass* klass) {
+  while (klass->superclass != NULL) {
+    klass = klass->superclass;
+  }
+  return klass;
 }
 //< Methods and Initializers bind-method
 //> Closures capture-upvalue
@@ -461,6 +504,26 @@ static void defineMethod(ObjString* name) {
 
 
   pop();
+}
+
+static bool findTopDownMethod(
+    ObjClass* current,
+    ObjClass* target,
+    ObjString* name,
+    Value* method,
+    ObjClass** owner) {
+  if (current == NULL) return false;
+
+  if (findTopDownMethod(current->superclass, target, name, method, owner)) {
+    return true;
+  }
+
+  if (tableGet(&current->methods, name, method)) {
+    *owner = current;
+    return true;
+  }
+
+  return false;
 }
 //< Methods and Initializers define-method
 //> Types of Values is-falsey
@@ -893,15 +956,15 @@ static InterpretResult run() {
 //< Calls and Functions interpret-call
 //> Methods and Initializers interpret-invoke
       case OP_INVOKE: {
-        ObjString* method = READ_STRING();
-        int argCount = READ_BYTE();
-        frame->ip = ip;
-        if (!invoke(method, argCount)) {
-          return INTERPRET_RUNTIME_ERROR;
-        }
-        frame = &vm.frames[vm.frameCount - 1];
-        ip = frame->ip;
-        break;
+          ObjString* method = READ_STRING();
+          int argCount = READ_BYTE();
+
+          if (!invokeBeta(method, argCount)) {
+            return INTERPRET_RUNTIME_ERROR;
+          }
+
+          frame = &vm.frames[vm.frameCount - 1];
+          break;
       }
 //< Methods and Initializers interpret-invoke
 //> Superclasses interpret-super-invoke
@@ -987,8 +1050,7 @@ static InterpretResult run() {
 
 //< inherit-non-class
         ObjClass* subclass = AS_CLASS(peek(0));
-        tableAddAll(&AS_CLASS(superclass)->methods,
-                    &subclass->methods);
+        subclass->superclass = AS_CLASS(superclass);
         pop(); // Subclass.
         break;
       }

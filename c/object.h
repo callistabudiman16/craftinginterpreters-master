@@ -162,6 +162,7 @@ typedef struct {
 //> Methods and Initializers class-methods
   Table methods;
   ObjClosure* initializer;
+  struct ObjClass* superclass;
 //< Methods and Initializers class-methods
 } ObjClass;
 //< Classes and Instances obj-class

@@ -55,6 +55,7 @@ typedef enum {
   OP_EQUAL,
   OP_GREATER,
   OP_LESS,
+  OP_INNER,
 //< Types of Values comparison-ops
 //> A Virtual Machine binary-ops
   OP_ADD,

@@ -1026,6 +1026,7 @@ ParseRule rules[] = {
 */
 //> Global Variables table-identifier
   [TOKEN_IDENTIFIER]    = {variable, NULL,   PREC_NONE},
+  [TOKEN_INNER] = {inner_, NULL, PREC_NONE},
 //< Global Variables table-identifier
 /* Compiling Expressions rules < Strings table-string
   [TOKEN_STRING]        = {NULL,     NULL,   PREC_NONE},
@@ -1159,6 +1160,13 @@ static void block() {
   }
 
   consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+}
+
+static void inner_(bool canAssign) {
+  consume(TOKEN_LEFT_PAREN, "Expect '(' after 'inner'.");
+  consume(TOKEN_RIGHT_PAREN, "Expect ')' after inner arguments.");
+
+  emitByte(OP_INNER);
 }
 //< Local Variables block
 //> Calls and Functions compile-function

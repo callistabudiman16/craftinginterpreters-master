@@ -168,8 +168,21 @@ static TokenType identifierType() {
         }
       }
       break;
+
+    case 'i':
+        if (scanner.current - scanner.start > 1) {
+         switch (scanner.start[1]) {
+          case 'n':
+             if (scanner.current - scanner.start == 5 &&
+                 memcmp(scanner.start + 2, "ner", 3) == 0) {
+          return TOKEN_INNER;
+             }
+             break;
+          }
+        }
+  break;
 //< keyword-f
-    case 'i': return checkKeyword(1, 1, "f", TOKEN_IF);
+    // case 'i': return checkKeyword(1, 1, "f", TOKEN_IF);
     case 'n': return checkKeyword(1, 2, "il", TOKEN_NIL);
     case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
     case 'p': return checkKeyword(1, 4, "rint", TOKEN_PRINT);

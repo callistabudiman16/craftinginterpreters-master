@@ -214,6 +214,7 @@ static void blackenObject(Obj* object) {
     case OBJ_CLASS: {
       ObjClass* klass = (ObjClass*)object;
       markObject((Obj*)klass->name);
+      markObject((Obj*)klass->superclass);
 //> Methods and Initializers mark-methods
       markTable(&klass->methods);
 //< Methods and Initializers mark-methods

@@ -37,6 +37,8 @@ typedef struct {
 //< Closures call-frame-closure
   uint8_t* ip;
   Value* slots;
+  ObjClass* owner;
+  ObjString* methodName;
 } CallFrame;
 //< Calls and Functions call-frame
 
