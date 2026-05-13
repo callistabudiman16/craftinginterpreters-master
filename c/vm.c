@@ -303,6 +303,13 @@ static bool callValue(Value callee, int argCount) {
       case OBJ_CLASS: {
         ObjClass* klass = AS_CLASS(callee);
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
+
+        if (klass->initializer != NULL) { 
+         return call(klass->initializer, argCount);
+        } else if (argCount != 0) {
+         runtimeError("Expected 0 arguments but got %d.", argCount);
+          return false;
+        }
 //> Methods and Initializers call-init
         Value initializer;
         if (tableGet(&klass->methods, OBJ_VAL(vm.initString),
@@ -447,6 +454,12 @@ static void defineMethod(ObjString* name) {
   Value method = peek(0);
   ObjClass* klass = AS_CLASS(peek(1));
   tableSet(&klass->methods, OBJ_VAL(name), method);
+
+  if (name == vm.initString) {
+    klass->initializer = AS_CLOSURE(method);
+  }
+
+
   pop();
 }
 //< Methods and Initializers define-method

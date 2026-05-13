@@ -52,6 +52,7 @@ ObjBoundMethod* newBoundMethod(Value receiver,
 ObjClass* newClass(ObjString* name) {
   ObjClass* klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
   klass->name = name; // [klass]
+  klass->initializer = NULL;
 //> Methods and Initializers init-methods
   initTable(&klass->methods);
 //< Methods and Initializers init-methods
