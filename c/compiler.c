@@ -164,6 +164,7 @@ static bool resolveGlobalMutability(Token* name);
 static void switchStatement();
 static void continueStatement();
 static void deleteStatement();
+static void inner_(bool canAssign);
 
 //> Calls and Functions current-chunk
 

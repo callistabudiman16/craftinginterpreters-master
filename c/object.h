@@ -156,7 +156,7 @@ typedef struct {
 //< Closures obj-closure
 //> Classes and Instances obj-class
 
-typedef struct {
+typedef struct ObjClass {
   Obj obj;
   ObjString* name;
 //> Methods and Initializers class-methods

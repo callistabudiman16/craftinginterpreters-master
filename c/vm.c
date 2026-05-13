@@ -31,6 +31,13 @@
 VM vm; // [one]
 
 static void runtimeError(const char* format, ...);
+static bool callClosure(ObjClosure* closure, int argCount);
+static bool findTopDownMethod(
+    ObjClass* current, ObjClass* target, ObjString* name,
+    Value* method, ObjClass** owner);
+static bool findInnerOverride(
+    ObjClass* current, ObjClass* owner, ObjString* name,
+    Value* method, ObjClass** ownerOut);
 
 //> Calls and Functions clock-native
 static bool clockNative(int argCount, Value* args, Value* result) {
@@ -97,7 +104,7 @@ static bool callMethod(
     int argCount,
     ObjClass* owner,
     ObjString* methodName) {
-  if (!call(closure, argCount)) return false;
+  if (!callClosure(closure, argCount)) return false;
 
   CallFrame* frame = &vm.frames[vm.frameCount - 1];
   frame->owner = owner;
@@ -276,6 +283,9 @@ static bool callFunction(ObjFunction* function, int argCount) {
   frame->closure = NULL;
   frame->ip = function->chunk.code;
   frame->slots = vm.stackTop - argCount - 1;
+  frame->owner = NULL;
+  frame->methodName = NULL;
+
   return true;
 }
 
@@ -296,6 +306,8 @@ static bool callClosure(ObjClosure* closure, int argCount) {
   frame->closure = closure;
   frame->ip = closure->function->chunk.code;
   frame->slots = vm.stackTop - argCount - 1;
+  frame->owner = NULL;
+  frame->methodName = NULL;
   return true;
 }
 
@@ -319,7 +331,7 @@ static bool callValue(Value callee, int argCount) {
         vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
 
         if (klass->initializer != NULL) { 
-         return call(klass->initializer, argCount);
+         return callClosure(klass->initializer, argCount);
         } else if (argCount != 0) {
          runtimeError("Expected 0 arguments but got %d.", argCount);
           return false;
@@ -403,7 +415,7 @@ static bool invokeBeta(ObjString* name, int argCount) {
     return false;
   }
 
-  return call(AS_CLOSURE(method), argCount);
+  return callMethod(AS_CLOSURE(method), argCount, owner, name);
 }
 
 //< Methods and Initializers invoke-from-class
@@ -518,8 +530,30 @@ static bool findTopDownMethod(
     return true;
   }
 
-  if (tableGet(&current->methods, name, method)) {
+  if (tableGet(&current->methods, OBJ_VAL(name), method)) {
     *owner = current;
+    return true;
+  }
+
+  return false;
+}
+
+// Walks from `current` up the inheritance chain toward `owner` (exclusive).
+// On the unwind, returns the most-general (closest-to-owner) class that
+// defines `name`. This gives BETA-style "inner" semantics for chains of
+// arbitrary depth.
+static bool findInnerOverride(
+    ObjClass* current, ObjClass* owner, ObjString* name,
+    Value* method, ObjClass** ownerOut) {
+  if (current == NULL || current == owner) return false;
+
+  if (findInnerOverride(current->superclass, owner, name,
+                        method, ownerOut)) {
+    return true;
+  }
+
+  if (tableGet(&current->methods, OBJ_VAL(name), method)) {
+    *ownerOut = current;
     return true;
   }
 
@@ -959,12 +993,56 @@ static InterpretResult run() {
           ObjString* method = READ_STRING();
           int argCount = READ_BYTE();
 
+          frame->ip = ip;
           if (!invokeBeta(method, argCount)) {
             return INTERPRET_RUNTIME_ERROR;
           }
 
           frame = &vm.frames[vm.frameCount - 1];
+          ip = frame->ip;
           break;
+      }
+
+
+      case OP_INNER: {
+        frame->ip = ip;
+
+        ObjClass* owner = frame->owner;
+        ObjString* methodName = frame->methodName;
+
+        if (owner == NULL || methodName == NULL) {
+          runtimeError("Can't use 'inner' outside of a method.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        Value receiver = frame->slots[0];
+
+        if (!IS_INSTANCE(receiver)) {
+          runtimeError("Invalid receiver for inner.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        ObjClass* klass = AS_INSTANCE(receiver)->klass;
+
+        Value method;
+        ObjClass* nextOwner = NULL;
+
+        if (findInnerOverride(klass, owner, methodName,
+                              &method, &nextOwner)) {
+          push(receiver);
+
+          if (!callMethod(AS_CLOSURE(method), 0,
+                          nextOwner, methodName)) {
+            return INTERPRET_RUNTIME_ERROR;
+          }
+
+          frame = &vm.frames[vm.frameCount - 1];
+          ip = frame->ip;
+        } else {
+          push(NIL_VAL);
+        }
+
+        break;
       }
 //< Methods and Initializers interpret-invoke
 //> Superclasses interpret-super-invoke
