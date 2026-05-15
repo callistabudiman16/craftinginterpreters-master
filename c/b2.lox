@@ -1,0 +1,10 @@
+var i = 0;
+
+while (i < 500000) {
+  var a = "x";
+  var b = "y";
+  var c = a + b;
+  i = i + 1;
+}
+
+print i;
